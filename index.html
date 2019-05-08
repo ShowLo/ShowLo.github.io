@@ -74,7 +74,7 @@ description: "Persistence is harder than effort."
         </li>
 
         {% for i in (1..paginator.total_pages) %}
-        	{% if (paginator.page < i + 4) && (paginator.page > i - 4) %}
+        	{% if paginator.page < {{i + 4}} && paginator.page > {{i - 4}} %}
 	            {% if paginator.page == i %}
 	        		<li class="active">
 	            {% else %}
