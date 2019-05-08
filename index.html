@@ -60,30 +60,30 @@ description: "Persistence is harder than effort."
             </a>
         </li>
         <li>
-        {% if paginator.page == 1 %}
-            <span>&laquo;</span>
-        {% else %}
-            {% if paginator.previous_page == 1 %}
-            <a href="{{ '/index.html' | prepend: site.baseurl | replace: '//', '/' }}">
-            {% else %}
-            <a href="{{ paginator.previous_page_path | prepend: site.baseurl | replace: '//', '/' }}">
-            {% endif %}
-                <span>&laquo;</span>
-            </a>
-        {% endif %}
+	        {% if paginator.page == 1 %}
+	            <span>&laquo;</span>
+	        {% else %}
+	            {% if paginator.previous_page == 1 %}
+	            	<a href="{{ '/index.html' | prepend: site.baseurl | replace: '//', '/' }}">
+	            {% else %}
+	            	<a href="{{ paginator.previous_page_path | prepend: site.baseurl | replace: '//', '/' }}">
+	            {% endif %}
+	            <span>&laquo;</span>
+	            </a>
+	        {% endif %}
         </li>
         {% for i in (1..paginator.total_pages) limit:9 offset:{{paginator.page-1}} %}
             {% if paginator.page == i %}
-        	<li class="active">
+        		<li class="active">
             {% else %}
-	        <li>
+	        	<li>
 	        {% endif %}
 	        {% if i == 1 %}
-	        <a href="{{ '/index.html' | prepend: site.baseurl | replace: '//', '/' }}">{{i}}</a>
+	        	<a href="{{ '/index.html' | prepend: site.baseurl | replace: '//', '/' }}">{{i}}</a>
 	        {% else %}
-	        <a href="{{ site.paginate_path | prepend: site.baseurl | replace: '//', '/' | replace: ':num', page }}">{{i}}</a>
+	        	<a href="{{ site.paginate_path | prepend: site.baseurl | replace: '//', '/' | replace: ':num', i }}">{{i}}</a>
 	        {% endif %}
-	    	</li>
+	    		</li>
         {% endfor %}
         <li>
             {% if paginator.page == paginator.total_pages %}
