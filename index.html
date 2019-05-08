@@ -114,8 +114,13 @@ description: "Persistence is harder than effort."
             {% endif %}
         </li>
         <li>
+            {% if paginator.total_pages == 1%}
+            <a href="{{ '/index.html' | prepend: site.baseurl | replace: '//', '/' }}">
+            {% else %}
             <a href="{{ site.paginate_path | prepend: site.baseurl | replace: '//', '/' | replace: ':num', paginator.total_pages }}">
+            {% endif %}
                 <span>末页</span>
+            }
             </a>
         </li>
         <li class="disabled">
