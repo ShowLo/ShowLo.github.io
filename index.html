@@ -38,9 +38,9 @@ description: "Persistence is harder than effort."
 	    {% if page == paginator.page %}
 	      <em>{{ page }}</em>
 	    {% elsif page == 1 %}
-	      <a href="{{ '/index.html' | prepend: site.baseurl | replace: '//', '/' }}">{{ page }}</a>
+	      <a href="{{ paginator.previous_page_path | relative_url }}">{{ page }}</a>
 	    {% else %}
-	      <a href="{{ site.paginate_path | prepend: site.baseurl | replace: '//', '/' | replace: ':num', page }}">{{ page }}</a>
+	      <a href="{{ site.paginate_path | relative_url | replace: ':num', page }}">{{ page }}</a>
 	    {% endif %}
 	{% endfor %}
 
