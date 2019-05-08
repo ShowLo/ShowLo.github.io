@@ -73,20 +73,36 @@ description: "Persistence is harder than effort."
 	        {% endif %}
         </li>
 
-        {% for i in (1..paginator.total_pages) %}
-        	{% if paginator.page < {{i + 4}} && paginator.page > {{i - 4}} %}
-	            {% if paginator.page == i %}
-	        		<li class="active">
-	            {% else %}
-		        	<li>
-		        {% endif %}
-		        {% if i == 1 %}
-		        	<a href="{{ '/index.html' | prepend: site.baseurl | replace: '//', '/' }}">{{i}}</a>
-		        {% else %}
-		        	<a href="{{ site.paginate_path | prepend: site.baseurl | replace: '//', '/' | replace: ':num', i }}">{{i}}</a>
-		        {% endif %}
+        {% assign start = paginator.page | minus:4 %}
+        {% assign end = paginator.page | plus:4 %}
+        {% if start < 1 %}
+        {% assign start = 1 %}
+        {% if paginator.total_pages > 9 %}
+        {% assign end = 9 %}
+        {% else %}
+        {% assign end = paginator.total_pages %}
+        {% endif %}
+        {% endif %}
+        {% if end > paginator.total_pages %}
+        {% assign end = paginator.total_pages %}
+        {% if paginator.total_pages > 9 %}
+        {% assign start = paginator.total_pages | minus:9 %}
+        {% else %}
+        {% assign end = 1 %}
+        {% endif %}
+        {% endif %}
+        {% for i in (start..end) %}
+	        {% if paginator.page == i %}
+	        	<li class="active">
+	        {% else %}
+		        <li>
+		    {% endif %}
+		    {% if i == 1 %}
+		        <a href="{{ '/index.html' | prepend: site.baseurl | replace: '//', '/' }}">{{i}}</a>
+		    {% else %}
+		        <a href="{{ site.paginate_path | prepend: site.baseurl | replace: '//', '/' | replace: ':num', i }}">{{i}}</a>
+		    {% endif %}
 	    		</li>
-	    	{% endif %}
         {% endfor %}
         <li>
             {% if paginator.page == paginator.total_pages %}
