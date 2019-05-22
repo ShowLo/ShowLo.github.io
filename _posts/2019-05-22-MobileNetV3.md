@@ -55,5 +55,18 @@ tags:
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">这里输入题注</div>
+    padding: 2px;">MobileNetV2层(反向残差和线性瓶颈)。 每个块由窄的输入和输出(瓶颈)组成，它们没有非线性，然后扩展到一个更高维度的空间并投影到输出。 残差连接瓶颈(而不是扩展)</div>
+</center>
+
+&emsp;MnasNet建立在MobileNetV2结构上，通过在瓶颈结构中引入基于压缩和激励（squeeze and excitation）的轻量级注意力模块。 注意，与[Squeeze-and-Excitation Networks](https://arxiv.org/abs/1709.01507)中提出的基于ResNet的模块相比，压缩和激励模块集成在不同的位置。 此模块位于拓展的深度滤波器之后，以便注意力机制应用于最大的表示，如下图所示。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/MobileNetV2.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">MobileNetV2 + Squeeze-and-Excite。与SENet相比，我们在残差层施加压缩和激励。 我们根据层的不同使用不同的非线性，详见5.2节</div>
 </center>
