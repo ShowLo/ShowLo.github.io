@@ -58,15 +58,27 @@ tags:
     padding: 2px;">MobileNetV2层(反向残差和线性瓶颈)。 每个块由窄的输入和输出(瓶颈)组成，它们没有非线性，然后扩展到一个更高维度的空间并投影到输出。 残差连接瓶颈(而不是扩展)</div>
 </center>
 
-&emsp;MnasNet建立在MobileNetV2结构上，通过在瓶颈结构中引入基于压缩和激励（squeeze and excitation）的轻量级注意力模块。 注意，与[Squeeze-and-Excitation Networks](https://arxiv.org/abs/1709.01507)中提出的基于ResNet的模块相比，压缩和激励模块集成在不同的位置。 此模块位于拓展的深度滤波器之后，以便注意力机制应用于最大的表示，如下图所示。
+&emsp;MnasNet建立在MobileNetV2结构上，在瓶颈结构中引入基于压缩和激励（squeeze and excitation）的轻量级注意力模块。 注意，与[Squeeze-and-Excitation Networks](https://arxiv.org/abs/1709.01507)中提出的基于ResNet的模块相比，压缩和激励模块集成在不同的位置。 此模块位于拓展的深度滤波器之后，以便注意力机制应用于最大的表示（representation），如下图所示。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/MobileNetV2.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/MobileNetV3.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">MobileNetV2 + Squeeze-and-Excite。与SENet相比，我们在残差层施加压缩和激励。 我们根据层的不同使用不同的非线性，详见5.2节</div>
+    padding: 2px;">MobileNetV2+Squeeze-and-Excite。与SENet相比，我们在残差层施加压缩和激励。 我们根据层的不同使用不同的非线性，详见5.2节</div>
 </center>
+
+&emsp;对于MobileNetV3，我们使用这些层的组合作为构建块，以便构建最有效的模型。 图层也通过修改swish非线性进行升级。 压缩和激励以及swish非线性都使用了sigmoid，它的计算效率很低，而且很难在定点算法中保持精度，因此我们将其替换为硬sigmoid，如5.2节所讨论的。
+
+## 4. 网络搜索
+
+&emsp;网络搜索已被证明是发现和优化网络架构的一个非常强大的工具。 对于MobileNetV3，我们使用平台感知的NAS通过优化每个网络块来搜索全局网络结构。 然后，我们使用NetAdapt算法搜索每个层的过滤器数量。 这些技术是互补的，可以结合起来为给定的硬件平台有效地找到优化模型。
+
+### 4.1 用于块搜索的平台感知NAS
+
+&emsp;我们采用平台感知神经结构方法来寻找全局网络结构。 由于我们使用相同的基于RNN的控制器和相同的分解层次搜索空间，所以对于目标延迟在80ms左右的大型移动模型，我们发现了与[MnasNet](https://arxiv.org/abs/1807.11626v2)类似的结果。 因此，我们只需重用相同的MnasNet-A1作为我们的初始大型移动模型，然后在其上应用[NetAdapt](https://arxiv.org/abs/1804.03230v2)和其他优化。
+
+&emsp;然而，我们发现最初的奖励设计并没有针对小型手机模型进行优化。 具体来说，它使用一个多目标奖励$ACC(m) \times [LAT(m)/TAR]^{w}$来近似帕累托最优解，根据目标延迟$TAR$对每个模型$m$平衡模型精度$ACC(m)$和延迟$LAT(m)$。 
