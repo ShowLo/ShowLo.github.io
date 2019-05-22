@@ -47,12 +47,10 @@ tags:
 
 &emsp;MobileNetV2引入了线性瓶颈和反向残差结构，以便利用问题的低秩性质使层结构更加有效。 这个结构如下图所示，由1x1拓展卷积（注：即提升通道数）、深度卷积和1x1投影层定义。 当且仅当输入和输出具有相同数量的通道时，才用残差链接连接它们。 该结构在保持输入和输出的紧凑表示的同时，在内部扩展到高维特征空间，以增加每个通道非线性转换的表现力。
 
-![MobileNetV2](https://github.com/ShowLo/ShowLo.github.io/blob/master/img/MobileNetV2.png)
-
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://github.com/ShowLo/ShowLo.github.io/blob/master/img/MobileNetV2.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/MobileNetV2.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
