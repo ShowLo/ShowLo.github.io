@@ -114,7 +114,7 @@ tags:
 
 &ensp;3. 重复前面的步骤，直到达到目标延迟。
 
-&emsp;在NetAdapt中，度量是为了最小化精度的变化。我们修改了这个算法，使延迟变化和精度变化的比例最小化。也就是说，对于每个NetAdapt步骤中生成的所有proposal，我们选择一个使得$\frac{\Delta Acc}{\Delat Latency}$最大的proposal，其中$\Delta Latency$满足2(a)中的约束。 直觉告诉我们，由于我们的proposal是离散的，所以我们更喜欢最大化权衡(trade-off)曲线斜率的proposal。
+&emsp;在NetAdapt中，度量是为了最小化精度的变化。我们修改了这个算法，使延迟变化和精度变化的比例最小化。也就是说，对于每个NetAdapt步骤中生成的所有proposal，我们选择一个使得$\frac{\Delta Acc}{\Delta Latency}$最大的proposal，其中$\Delta Latency$满足2(a)中的约束。 直觉告诉我们，由于我们的proposal是离散的，所以我们更喜欢最大化权衡(trade-off)曲线斜率的proposal。
 
 &emsp;这个过程重复进行，直到延迟达到目标，然后从头开始重新训练新的体系结构。 我们使用与在NetAdapt中用于MobilenetV2的相同的proposal生成器。 具体来说，我们允许以下两种proposal:
 
@@ -122,3 +122,8 @@ tags:
 
 &ensp;2. 减少共享相同瓶颈大小的所有块中的瓶颈—以维护残差连接。
 
+&emsp;在我们的实验中，我们使用$T = 10000$，发现虽然它增加了proposal初始微调的准确性，但是当从零开始训练时，它并没有改变最终的准确性。 我们设置$\delta=0.01|L|$, L是种子模型的延迟。
+
+## 5. 网络的改进
+
+&emsp;除了网络搜索，我们还为模型引入了一些新的组件，以进一步改进最终模型。在网络的开始和结束阶段，我们重新设计了计算代价高的层。我们还引入了一种新的非线性，h-swish，它是最近的swish非线性的改进版本，计算速度更快，更易于量化。
