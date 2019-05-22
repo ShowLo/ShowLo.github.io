@@ -6,6 +6,7 @@ date:       2019-05-22
 author:     CJR
 header-img: img/post-bg-brain.jpg
 catalog: true
+mathjax: true
 tags:
     - MobileNet
     - Neural Network
