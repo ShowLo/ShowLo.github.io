@@ -21,6 +21,20 @@ tags:
 
 &emsp;下面先对论文做一个简单的翻译：
 
+---
+
+<head>
+    <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
+    <script type="text/x-mathjax-config">
+        MathJax.Hub.Config({
+            tex2jax: {
+            skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+            inlineMath: [['$','$']]
+            }
+        });
+    </script>
+</head>
+
 ## 摘要
 &emsp;我们展示了基于互补搜索技术和新颖架构设计相结合的下一代MobileNet。MobileNetV3通过结合硬件感知的网络架构搜索(NAS)和NetAdapt算法对移动手机的cpu进行调优，然后通过新的架构改进对其进行改进。本文开始探索自动化搜索算法和网络设计如何协同工作，利用互补的方法来提高整体STOA。通过这个过程，我们创建发布了两个新的MobileNet模型:MobileNetV3-Large和MobileNetV3-Small，它们分别针对高资源和低资源两种情况。然后将这些模型应用于目标检测和语义分割。针对语义分割(或任何密集像素预测)任务，我们提出了一种新的高效分割解码器Lite reduce Atrous Spatial Pyramid Pooling (LR-ASPP)。我们实现了移动分类、检测和分割的STOA。与MobileNetV2相比，MobileNetV3-Large在ImageNet分类上的准确率提高了3.2%，同时延迟降低了15%。与MobileNetV2相比，MobileNetV3-Small的准确率高4.6%，同时延迟降低了5%。MobileNetV3-Large检测速度比MobileNetV2快25%，在COCO检测上的精度大致相同。MobileNetV3-Large LR-ASPP的速度比MobileNetV2 R-ASPP快30%，在城市景观分割的精度类似。
 
@@ -84,4 +98,4 @@ tags:
 
 &emsp;然而，我们发现最初的奖励设计并没有针对小型手机模型进行优化。具体来说，它使用一个多目标奖励$ACC(m) \times [LAT(m)/TAR]^{w}$来近似帕累托最优解，根据目标延迟$TAR$对每个模型$m$平衡模型精度$ACC(m)$和延迟$LAT(m)$。我们观察到，对于小模型，精度随延迟变化更为显著；因此，我们需要一个较小的权重因子$\omega = - 0.15$(与MnasNet中原始的$\omega = - 0.07$相比)来补偿不同延迟下较大的精度变化。在新的权重因子$\omega$的增强下，我们从头开始一个新的架构搜索，以找到初始的种子模型，然后应用NetAdapt和其他优化来获得最终的MobileNetV3-Small模型。
 
-$$a^2 + b^2 = c^2$$
+$$x^{(j)}=\sum_{i<j} o^{(i, j)}\left(x^{(i)}\right) \qquad (1)$$
