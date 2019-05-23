@@ -209,3 +209,123 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
 #### 6.1.1 训练设置
 
 &emsp;我们在4x4 TPU Pod上使用momentum=0.9的标准tensorflow RMSPropOp-timizer进行同步训练。我们使用初始学习率为0.1，批大小为4096(每个芯片128张图像)，学习率衰减率为0.01/每3个epoch。我们使用0.8的dropout, l2权值衰减为1e-5，图像预处理与[Inception](https://arxiv.org/abs/1602.07261v2)相同。最后，我们使用衰减为0.9999的指数移动平均。我们所有的卷积层都使用批处理归一化层，平均衰减为0.99。
+
+#### 6.1.2 测量设置
+
+&emsp;为了测量延迟，我们使用标准的谷歌Pixel手机，并通过标准的TFLite基准测试工具运行所有网络。我们在所有测量中都使用单线程大内核。我们没有报告多核推理时间，因为我们发现这种设置对移动应用程序不太实用。
+
+### 6.2 结果
+
+&emsp;如下图所示，我们的模型优于目前的STOA，如MnasNet、ProxylessNas和MobileNetV2。我们在表3中报告了不同像素手机上的浮点性能。我们在表4中包括量化结果。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/MobileNetV3-small-large.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">Pixel 1 延迟与ImageNet上top-1准确率之间的权衡。所有模型都使用输入分辨率224。V3 large和V3 small使用乘数0.75、1和1.25来显示最佳边界。使用TFLite在同一设备的单个大内核上测量所有延迟。MobileNetV3-Small和Large是我们提议的下一代移动模型</div>
+</center>
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/table3.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表3. Pixel系列手机的浮点性能（“P-n”表示Pixel-n手机）。所有延迟都以毫秒为单位。推理延迟是使用批量大小为1的单个大核心来测量的</div>
+</center>
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/table4.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表4. 量化性能。所有延迟都以毫秒为单位。推理延迟是在各自的Pixel 1/2/3设备上使用单个大核心来测量的</div>
+</center>
+
+&emsp;在下图中，我们展示了MobileNetV3性能权衡作为乘数和分辨率的函数。请注意，MobileNetV3-Small的性能比MobileNetV3-Large的性能好得多，其乘法器缩放到与性能匹配的倍数接近3%。另一方面，分辨率提供了比乘数更好的权衡。但是，需要注意的是，分辨率通常是由问题决定的(例如分割和检测问题通常需要更高的分辨率)，因此不能总是用作可调参数。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/MobileNetV3-V2.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">作为不同乘数和分辨率函数的MobileNetV3性能。在我们的实验中，我们使用了固定分辨率为224同时乘数为0.35、0.5、0.75、1.0和1.25，以及固定深度乘数为1.0同时分辨率为96、128、160、192、224和256。彩色效果最佳</div>
+</center>
+
+#### 6.2.1 模型简化测试（Ablation study）
+
+##### 非线性的影响
+
+&emsp;在表5和下图中，我们展示了在何处插入h-swish的决定如何影响延迟。特别重要的是，我们注意到，在整个网络上使用h-swish会导致精度略有提高(0.2)，同时增加了近20%的延迟，并再次回到效率边界（efficient frontier）。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/table5.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表5. 非线性对MobileNetV3-Large的影响。在h-swish@N中，N表示启用h-swish的第一层的通道数</div>
+</center>
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/h-swish.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">h-swish vs swish vs ReLU对延迟的影响。曲线显示了使用深度乘数的边界。请注意，将h-swish放置在112个或更多通道的所有层，沿着最佳边界移动</div>
+</center>
+
+&emsp;另一方面，与ReLU相比，使用h-swish提高了效率边界，尽管仍然比ReLU计算代价高了12%左右。最后，我们注意到，当h-swish通过融合到卷积运算符中得到优化时，我们预计h-swish和ReLU之间的延迟差距即使没有消失，也会显著减小。然而，h-swish和swish之间不可能有这样的改进，因为计算sigmoid本来代价就比较高。
+
+##### 其他组件的影响
+
+&emsp;在下图中，我们展示了不同组件的引入是如何沿着延迟/准确率曲线移动的。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/progression.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">向网络体系结构中添加单个组件的影响</div>
+</center>
+
+### 6.3 检测
+
+&emsp;我们使用MobileNetV3作为SSDLite中骨干功能提取器的替代品，并与COCO数据集上的其他骨干网络进行比较。
+
+&emsp;跟MobileNetV2一样，我们将第一层SSDLite附加到输出步长为16（注：比如输入分辨率为224，这里就指的是分辨率变为14）的最后一个特征提取器层，并将第二层SSDLite附加到输出步长为32的最后一个特征提取器层。根据检测文献，我们将这两个特征提取层分别称为C4和C5。对于MobileNetV3-Large, C4是第13个瓶颈块的拓展层。对于MobileNetV3-Small, C4是第9个瓶颈块的拓展层。对于这两个网络，C5都是池化之前的一层。
+
+&emsp;此外，我们还将C4和C5之间的所有特征层的通道数减少了2倍。这是因为MobileNetV3的最后几层被调优为输出1000个类，当传输到只有90个类的COCO时，这可能是多余的。
+
+&emsp;表6给出了COCO测试集的结果。随着通道减少，MobileNetV3-Large比具有几乎相同mAP的MobileNetV2快25%。与MobileNetV2和Mnasnet相比，通道减少的MobileNetV3-Small在相近延迟下的mAP也高出2.4和0.5。对于这两个MobileNetV3模型，通道减少技巧有助于在不丢失mAP的情况下减少大约15%的延迟，这表明ImageNet分类和COCO目标检测可能更喜欢不同的特征提取器形状。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/table6.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表6. 不同骨架的SSDLite在COCO测试集上的目标检测结果。†:C4和C5之间的块中的通道减少了2倍</div>
+</center>
