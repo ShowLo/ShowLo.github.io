@@ -24,7 +24,7 @@ tags:
 ---
 
 ## 摘要
-&emsp;我们展示了基于互补搜索技术和新颖架构设计相结合的下一代MobileNet。MobileNetV3通过结合硬件感知的网络架构搜索(NAS)和NetAdapt算法对移动手机的cpu进行调优，然后通过新的架构改进对其进行改进。本文开始探索自动化搜索算法和网络设计如何协同工作，利用互补的方法来提高整体STOA。通过这个过程，我们创建发布了两个新的MobileNet模型:MobileNetV3-Large和MobileNetV3-Small，它们分别针对高资源和低资源两种情况。然后将这些模型应用于目标检测和语义分割。针对语义分割(或任何密集像素预测)任务，我们提出了一种新的高效分割解码器Lite reduce Atrous Spatial Pyramid Pooling (LR-ASPP)。我们实现了移动分类、检测和分割的STOA。与MobileNetV2相比，MobileNetV3-Large在ImageNet分类上的准确率提高了3.2%，同时延迟降低了15%。与MobileNetV2相比，MobileNetV3-Small的准确率高4.6%，同时延迟降低了5%。MobileNetV3-Large检测速度比MobileNetV2快25%，在COCO检测上的精度大致相同。MobileNetV3-Large LR-ASPP的速度比MobileNetV2 R-ASPP快30%，在城市景观分割的精度类似。
+&emsp;我们展示了基于互补搜索技术和新颖架构设计相结合的下一代MobileNet。MobileNetV3通过结合硬件感知的网络架构搜索(NAS)和NetAdapt算法对移动手机的cpu进行调优，然后通过新的架构改进对其进行改进。本文开始探索自动化搜索算法和网络设计如何协同工作，利用互补的方法来提高整体STOA。通过这个过程，我们创建发布了两个新的MobileNet模型:MobileNetV3-Large和MobileNetV3-Small，它们分别针对高资源和低资源两种情况。然后将这些模型应用于目标检测和语义分割。针对语义分割(或任何密集像素预测)任务，我们提出了一种新的高效分割解码器Lite reduce Atrous Spatial Pyramid Pooling (LR-ASPP)。我们实现了移动分类、检测和分割的STOA。与MobileNetV2相比，MobileNetV3-Large在ImageNet分类上的准确率提高了3.2%，同时延迟降低了15%。与MobileNetV2相比，MobileNetV3-Small的准确率高4.6%，同时延迟降低了5%。MobileNetV3-Large检测速度比MobileNetV2快25%，在COCO检测上的精度大致相同。MobileNetV3-Large LR-ASPP的速度比MobileNetV2 R-ASPP快30%，在Cityscapes分割的精度类似。
 
 ## 1. 介绍
 &emsp;高效的神经网络在移动应用程序中变得无处不在，从而实现全新的设备体验。它们也是个人隐私的关键推动者，允许用户获得神经网络的好处，而无需将数据发送到服务器进行评估。神经网络效率的进步不仅通过更高的精度和更低的延迟改善了用户体验，而且通过降低功耗有助于保持电池寿命。
