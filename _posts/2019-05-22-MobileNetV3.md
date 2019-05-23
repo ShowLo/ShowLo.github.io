@@ -16,7 +16,7 @@ tags:
     - Lightweight Network
 ---
 
-## MobileNetV3
+# MobileNetV3
 &emsp;谷歌在2019年5月在arxiv上公开了MobileNetV3的论文，原论文见 [Searching for MobileNetV3](https://arxiv.org/abs/1905.02244v2)。
 
 &emsp;下面先对论文做一个简单的翻译：
@@ -124,7 +124,7 @@ tags:
 
 &emsp;为了减少延迟并保留高维特征，我们将该层移到最终的平均池化之后。最后一组特征现在以1x1空间分辨率计算，而不是7x7空间分辨率。这种设计选择的结果是，在计算和延迟方面，特征的计算变得几乎是free的。
 
-&emsp;;;一旦降低了该特征生成层的成本，就不再需要以前的瓶颈投影层来减少计算量。该观察允许我们删除前一个瓶颈层中的投影和滤波层，从而进一步降低计算复杂度。原始阶段和优化后的最后一个阶段如下图所示。有效的最后一个阶段将延迟减少了10毫秒，即15%的运行时间，并将操作数量减少了3000万个MADDs，几乎没有损失精度。 第6节包含了详细的结果。
+&emsp;一旦降低了该特征生成层的成本，就不再需要以前的瓶颈投影层来减少计算量。该观察允许我们删除前一个瓶颈层中的投影和滤波层，从而进一步降低计算复杂度。原始阶段和优化后的最后一个阶段如下图所示。有效的最后一个阶段将延迟减少了10毫秒，即15%的运行时间，并将操作数量减少了3000万个MAdds，几乎没有损失精度。 第6节包含了详细的结果。
 
 <center>
     <img style="border-radius: 0.3125em;
@@ -136,3 +136,64 @@ tags:
     color: #999;
     padding: 2px;">原来的和有效的最后一个阶段的比较。这个更有效的最后阶段能够在不损失精度的情况下，在网络的末端丢弃三个expensive的层</div>
 </center>
+
+&emsp;另一个expensive的层是初始过滤器集。目前的移动模型倾向于在一个完整的3x3卷积中使用32个滤波器来构建初始滤波器库进行边缘检测。通常这些过滤器是彼此的镜像。我们尝试减少滤波器的数量，并使用不同的非线性来尝试减少冗余。我们决定对这一层使用硬swish非线性，因为它表现得和其他被测试的非线性一样好。我们能够将滤波器的数量减少到16个，同时保持与使用ReLU或swish的32个滤波器相同的精度。这节省了额外的3毫秒和1000万MAdds。
+
+### 5.2 非线性
+
+&emsp;一种称为swish的非线性，当作为ReLU的替代变量时，它可以显著提高神经网络的准确性。非线性定义为
+
+$$swish x=x\cdot\sigma(x)$$
+
+&emsp;虽然这种非线性提高了精度，但在嵌入式环境中，它的成本是非零的，因为在移动设备上计算sigmoid函数要昂贵得多。我们用两种方法处理这个问题。
+
+&emsp;1. 我们将sigmoid函数替换为它的分段线性硬模拟:$\frac{RELU6(x+3)}{6}$。小的区别是我们使用RELU6而不是自定义的剪裁常量（custom clipping constant）。类似地，swish的硬版本也变成了
+
+$$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
+
+&emsp;最近在某篇文章中也提出了类似的hard-swish版本。下图显示了sigmoid和swish非线性的软、硬版本的比较。我们选择常量的动机是简单，并且与原始的平滑版本很好地匹配。在我们的实验中，我们发现所有这些函数的硬版本在精度上没有明显的差异，但是从部署的角度来看，它们具有多种优势。首先，几乎所有的软件和硬件框架上都可以使用ReLU6的优化实现。其次，在量化模式下，它消除了由于近似sigmoid的不同实现而引起的潜在数值精度损失。最后，即使优化了量化的sigmoid实现，其速度也比相应的ReLU慢得多。在我们的实验中，用量化模式下的swish替换h-swish使推理延迟增加了15%。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/sigmoid-swish.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">sigmoid和swish非线性及其他“硬”对应物</div>
+</center>
+
+&emsp;2. 随着我们深入网络，应用非线性的成本会降低，因为每层激活内存通常在分辨率下降时减半。顺便说一句，我们发现swish的大多数好处都是通过只在更深的层中使用它们实现的。因此，在我们的架构中，我们只在模型的后半部分使用h-swish。我们参照表1和表2来获得精确的布局。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/table1.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表1. MobileNetv3-Large规范。SE表示该块中是否存在压缩和激励。NL表示使用的非线性类型。这里，HS表示h-swish，RE表示ReLU。NBN表示没有批量规范化。s表示步长。</div>
+</center>
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/table2.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表2. MobileNetv3-Small规范。符号见表1。</div>
+</center>
+
+&emsp;即使有了这些优化，h-swish仍然会带来一些延迟成本。然而，正如我们在第6节中所展示的，对准确性和延迟的净影响是积极的，它为进一步的软件优化提供了一个场所：一旦平滑的Sigmoid被逐段线性函数取代，大部分开销都是内存访问，可以通过将非线性与前一层融合来消除。
+
+#### 5.2.1 Large squeeze-and-excite
+
+&emsp;在Mnasnet中，压缩-激发瓶颈的大小与卷积瓶颈的大小有关。取而代之的是，我们将它们全部替换为固定为拓展层通道数的1/4。我们发现这样做可以在适当增加参数数量的情况下提高精度，并且没有明显的延迟成本。
+
+### 5.3 MobileNetV3定义
+
+&emsp;MobileNetV3被定义为两个模型:MobileNetV3-Large和MobileNetV3-Small。这些模型分别针对高资源用例和低资源用例。通过将平台感知的NAS和NetAdapt用于网络搜索，并结合本节定义的网络改进，可以创建模型。我们的网络的完整规范见表1和表2。
