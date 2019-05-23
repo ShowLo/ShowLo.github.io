@@ -229,6 +229,7 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
     padding: 2px;">Pixel 1 延迟与ImageNet上top-1准确率之间的权衡。所有模型都使用输入分辨率224。V3 large和V3 small使用乘数0.75、1和1.25来显示最佳边界。使用TFLite在同一设备的单个大内核上测量所有延迟。MobileNetV3-Small和Large是我们提议的下一代移动模型</div>
 </center>
 
+
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
@@ -329,3 +330,39 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
     color: #999;
     padding: 2px;">表6. 不同骨架的SSDLite在COCO测试集上的目标检测结果。†:C4和C5之间的块中的通道减少了2倍</div>
 </center>
+
+### 6.4 语义分割
+
+&emsp;在本小节中，我们使用MobileNetV2和提出的MobileNetV3作为移动语义分割的网络骨架。此外，我们比较了两个分割头。第一个是在MobileNetV2中提出的R-ASPP。R-ASPP是一种无源空间金字塔池化模块的简化设计，它只采用由1×1卷积和全局平均池化操作组成的两个分支。在这项工作中，我们提出了另一种轻型分割头，称为Lite R-ASPP(或LR-ASPP)，如下图所示。Lite R-ASPP是对R-ASPP的改进，它部署全局平均池的方式类似于压缩-激励模块，其中我们使用了一个具有较大步长的较大池化核(以节省一些计算)，并且模块中只有一个1×1卷积。我们对MobileNetV3的最后一个块应用空洞卷积（atrous convolution）来提取更密集的特性，并进一步从底层特性添加一个跳跃（skip）连接来捕获更详细的信息。
+
+&emsp;我们使用度量mIOU对Cityscapes数据集进行了实验，只使用了“fine”注释。 我们采用与MobileNetV2相同的训练方案。 我们所有的模型都是从零开始训练，没有在ImageNet上进行预训练，并使用单尺度输入进行评估。 与目标检测类似，我们发现我们可以在不显著降低性能的情况下，将网络骨干最后一块的通道减少2倍。 我们认为这是因为骨干网络是为具有1000类的ImageNet图像分类设计的，而Cityscapes只有19类，这意味着骨干网络中存在一定的通道冗余。
+
+&emsp;我们在表7中报告了我们的Cityscapes验证集结果。如表所示，我们观察到：（1）将最后一个网络骨干块中的通道减少2倍，在保持类似性能的同时显著提高了速度（第1行与第2行，第5行与第6行）；（2）提出的分割头LR-ASSP略快于R-ASSP，而性能有所改善（第2行与第3行，第6行与第7行）；（3）将分割头中的滤波器从256减少到128可以提高速度，但性能稍差（第3行与第4行，第7行与第8行）；（4）当采用相同的设置时，MobileNetV3模型的变体获得了相似的性能，但比MobileNetV2对应的模型稍快（第1行对第5行，第2行对第6行，第3行对第7行，第4行对第8行）；（5）MobileNetV3-Small与MobileNetV2-0.5的性能相似，但速度更快；（6）MobileNetV3-Small明显优于MobileNetV2-0.35，但速度相似。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/table7.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表7. Cityscapes验证集的语义分割结果。RF2：将最后一个块中的滤波器减少2倍。V2 0.5和V2 0.35是MobileNetV2，深度乘数分别为0.5和0.35。SH：分割头，其中$\times$使用R-ASSP，而$\checkmark$使用建议的LR-ASSP。F：分割头中使用的滤波器数量。CPU（f）：在Pixel 3（浮点）用全分辨率输入（即1024×2048）的单个大核心上测量的CPU时间。CPU（h）：测量的CPU时间，用半分辨率输入（即512×1024）。第8行和第11行是我们的MobileNetv3细分候选</div>
+</center>
+
+&emsp;表8显示了我们的Cityscapes测试集结果。我们的以MobileNetV3为网络骨干的分割模型，表现分别比ESPNetv2、CCC2和ESPNetv1超出10.5%、10.6%、12.3%，同时在MAdds方面更快。在MobileNetV3的最后一个块中，当不使用空洞卷积提取密集特征图时，性能略有下降0.6%，但速度提高到1.98B(对于半分辨率输入)，分别是ESPNetv2、CCC2和ESPNetv1的1.7倍、1.59倍和2.24倍。此外，我们的以MobileNetV3-Small作为骨干网络的模型仍然优于它们至少一个6.2%的健壮差额（healthy margin）。我们最快的模型版本比ESPNetv2-small好13.6%，推理速度稍微快一些。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/table8.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表8. Cityscapes测试集的语义分割结果。OS ：输出步长，输入图像空间分辨率与骨干输出分辨率之比。当OS=16时，在骨干的最后一块应用空洞卷积。当OS=32时，不使用空洞卷积。MAdds（f）：在全分辨率输入（即1024×2048）时测量的乘法-加法运算量。MADDS（h）：在半分辨率输入（即512×1024）时测量的乘法-加法运算量。CPU（f）：在Pixel 3（浮点）于全分辨率输入（即1024×2048）时的单个大核心上测量的CPU时间。CPU（h）：在半分辨率输入（即512×1024）时测量的CPU时间。†:MAdds是根据Espnetv2估计的，其中仅为输入尺寸224×224提供MAdds</div>
+</center>
+
+## 7. 结论与未来工作
+
+&emsp;本文介绍了MobileNetV3的Large和Small模型，展示了移动分类、检测和分割的STOA。我们已经描述了我们利用多种类型的网络架构搜索以及网络设计的进步来交付下一代移动模型的努力。我们还展示了如何采用像swish这样的非线性，并以量化友好和有效的方式应用压缩和激励，将它们作为有效的工具引入到移动模型领域。我们还介绍了一种称为LR-ASSP的轻量化分割译码器。尽管如何最好地将自动搜索技术与人类的直觉结合起来仍然是一个悬而未决的问题，但我们很高兴地提出了这些第一个积极的结果，并将继续在未来的工作中改进方法。
