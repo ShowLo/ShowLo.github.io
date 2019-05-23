@@ -4,7 +4,7 @@ title:      MobileNetV3
 subtitle:   Third Version of MobileNet
 date:       2019-05-22
 author:     CJR
-header-img: img/post-bg-brain.jpg
+header-img: img/2019-05-22-MobileNetV3/post-bg-brain.jpg
 catalog: true
 mathjax: true
 tags:
@@ -22,18 +22,6 @@ tags:
 &emsp;下面先对论文做一个简单的翻译：
 
 ---
-
-<head>
-    <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
-    <script type="text/x-mathjax-config">
-        MathJax.Hub.Config({
-            tex2jax: {
-            skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
-            inlineMath: [['$','$']]
-            }
-        });
-    </script>
-</head>
 
 ## 摘要
 &emsp;我们展示了基于互补搜索技术和新颖架构设计相结合的下一代MobileNet。MobileNetV3通过结合硬件感知的网络架构搜索(NAS)和NetAdapt算法对移动手机的cpu进行调优，然后通过新的架构改进对其进行改进。本文开始探索自动化搜索算法和网络设计如何协同工作，利用互补的方法来提高整体STOA。通过这个过程，我们创建发布了两个新的MobileNet模型:MobileNetV3-Large和MobileNetV3-Small，它们分别针对高资源和低资源两种情况。然后将这些模型应用于目标检测和语义分割。针对语义分割(或任何密集像素预测)任务，我们提出了一种新的高效分割解码器Lite reduce Atrous Spatial Pyramid Pooling (LR-ASPP)。我们实现了移动分类、检测和分割的STOA。与MobileNetV2相比，MobileNetV3-Large在ImageNet分类上的准确率提高了3.2%，同时延迟降低了15%。与MobileNetV2相比，MobileNetV3-Small的准确率高4.6%，同时延迟降低了5%。MobileNetV3-Large检测速度比MobileNetV2快25%，在COCO检测上的精度大致相同。MobileNetV3-Large LR-ASPP的速度比MobileNetV2 R-ASPP快30%，在城市景观分割的精度类似。
@@ -65,7 +53,7 @@ tags:
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/MobileNetV2.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/MobileNetV2.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
@@ -78,7 +66,7 @@ tags:
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/MobileNetV3.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/MobileNetV3.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
@@ -127,3 +115,24 @@ tags:
 ## 5. 网络的改进
 
 &emsp;除了网络搜索，我们还为模型引入了一些新的组件，以进一步改进最终模型。在网络的开始和结束阶段，我们重新设计了计算代价高的层。我们还引入了一种新的非线性，h-swish，它是最近的swish非线性的改进版本，计算速度更快，更易于量化。
+
+### 5.1 重新设计Expensive的层
+
+&emsp;一旦通过架构搜索找到模型，我们就会发现，一些最后的层以及一些较早的层比其他层更expensive。我们建议对体系结构进行一些修改，以减少这些较慢的层的延迟，同时保持准确性。这些修改超出了当前搜索空间的范围。
+
+&emsp;第一个修改修改了网络的最后几层的交互方式，以便更有效地生成最终的特征。目前的模型基于MobileNetV2的反向瓶颈结构和变体，将1x1卷积作为最后一层以扩展到高维特征空间。这一层非常重要，因为它具有丰富特征用于预测。然而，这是以额外的延迟为代价的。
+
+&emsp;为了减少延迟并保留高维特征，我们将该层移到最终的平均池化之后。最后一组特征现在以1x1空间分辨率计算，而不是7x7空间分辨率。这种设计选择的结果是，在计算和延迟方面，特征的计算变得几乎是free的。
+
+&emsp;;;一旦降低了该特征生成层的成本，就不再需要以前的瓶颈投影层来减少计算量。该观察允许我们删除前一个瓶颈层中的投影和滤波层，从而进一步降低计算复杂度。原始阶段和优化后的最后一个阶段如下图所示。有效的最后一个阶段将延迟减少了10毫秒，即15%的运行时间，并将操作数量减少了3000万个MADDs，几乎没有损失精度。 第6节包含了详细的结果。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/original-efficient.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">原来的和有效的最后一个阶段的比较。这个更有效的最后阶段能够在不损失精度的情况下，在网络的末端丢弃三个expensive的层</div>
+</center>
