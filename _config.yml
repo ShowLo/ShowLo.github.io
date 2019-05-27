@@ -5,9 +5,9 @@ header-img: img/post-bg-city.jpg
 email: cjr14@tsinghua.org.cn
 description: "Persistence is harder than effort."
 keyword: "CJR"
-url: "https://ShowLo.github.io"          # your host, for absolute URL
+url: "https://cjjohn.coding.me"          # your host, for absolute URL
 baseurl: "blog"      # for example, '/blog' if your blog hosted on 'host/blog'
-github_repo: "https://github.com/ShowLo/ShowLo.github.io.git" # you code repository
+github_repo: "https://git.dev.tencent.com/CJJohn/blog.git" # you code repository
 
 # Sidebar settings
 sidebar: true                           # whether or not using Sidebar.
@@ -23,7 +23,7 @@ zhihu_username:
 github_username:    ShowLo
 #facebook_username:  
 #jianshu_username:   
-#twitter_username:   qiubaiying
+#twitter_username:
 
 
 
@@ -57,9 +57,6 @@ kramdown:
 
 
 # 评论系统
-# Disqus（https://disqus.com/）
-# disqus_username: qiubaiying
-
 # Gitalk
 gitalk:
   enable: true    #是否开启Gitalk评论
