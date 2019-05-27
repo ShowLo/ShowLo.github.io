@@ -5,8 +5,8 @@ header-img: img/post-bg-city.jpg
 email: cjr14@tsinghua.org.cn
 description: "Persistence is harder than effort."
 keyword: "CJR"
-url: "https://cjjohn.coding.me"          # your host, for absolute URL
-baseurl: "blog"      # for example, '/blog' if your blog hosted on 'host/blog'
+url: "https://cjjohn.coding.me/blog"          # your host, for absolute URL
+baseurl: ""      # for example, '/blog' if your blog hosted on 'host/blog'
 github_repo: "https://git.dev.tencent.com/CJJohn/blog.git" # you code repository
 
 # Sidebar settings
