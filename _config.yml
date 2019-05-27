@@ -12,7 +12,7 @@ github_repo: "https://git.dev.tencent.com/CJJohn/blog.git" # you code repository
 # Sidebar settings
 sidebar: true                           # whether or not using Sidebar.
 sidebar-about-description: "不会弹吉他的后卫不是好的电子狗"
-sidebar-avatar: /img/headPortrait.jpg      # use absolute URL, seeing it's used in both `/` and `/about/`
+sidebar-avatar: /blog/img/headPortrait.jpg      # use absolute URL, seeing it's used in both `/` and `/about/`
 
 
 
