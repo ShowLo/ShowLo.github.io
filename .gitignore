@@ -34,4 +34,5 @@ Temporary Items
 # debug file
 _site
 
+# for coding.net with different setting in _config.yml
 _config.yml
