@@ -6,7 +6,7 @@ date:       2019-07-15
 author:     CJR
 header-img: img/2019-07-15-Linux&Windows下用C++跑pytorch模型/post-bg.jpg
 catalog: true
-mathjax: true
+mathjax: false
 tags:
     - pytorch
     - Linux
