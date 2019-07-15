@@ -33,7 +33,7 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(best_model_path))
     model.eval()
 
-    # An example input you would normally provide to your model's forward() method
+    # An example input you would normally provide to the forward() method
     example = torch.rand(1, 1, 90, 90)
 
     # Use torch.jit.trace to generate a torch.jit.ScriptModule via tracing.
