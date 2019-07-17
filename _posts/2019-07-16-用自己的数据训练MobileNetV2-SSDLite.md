@@ -23,18 +23,19 @@ tags:
 &emsp;首先我们需要有图片以及与之对应的xml文件，并存放成VOC2007文件夹格式，可以采用labelImg工具进行标注，标注完成之后还需要切分训练集、验证集与测试集。这部分可以参考[此篇博客](https://blog.csdn.net/u011574296/article/details/78953681)。最终可以得到如以下所示的文件夹：
 
 ```
-├── Annotations
-    ├── xxxxxx.xml
-    ├──        ...
-├── ImageSets
-    ├── Main
-        ├── test.txt
-        ├── train.txt
-        ├── trainval.txt
-        ├── val.txt
-├── JPEGImages
-    ├── xxxxxx.jpg
-    ├──        ...
+├── VOC2007
+  ├── Annotations
+      ├── xxxxxx.xml
+      ├──        ...
+  ├── ImageSets
+      ├── Main
+          ├── test.txt
+          ├── train.txt
+          ├── trainval.txt
+          ├── val.txt
+  ├── JPEGImages
+      ├── xxxxxx.jpg
+      ├──        ...
 ```
 
 &emsp;接着需要将数据转换为训练用的lmdb文件，我们需要在之前安装了caffe的目录下找到`data/VOC0712`文件夹，把其下的`create_list.sh`和`create_data.sh`给复制到一个临时文件夹中去，并修改其下的`label_voc.prototxt`（根据数据集中的类别修改，注意保留第0类的背景类，也就是说如果你的数据集有一个类别，那么修改后的文件就会有两个类别），然后将修改后的`label_voc.prototxt`文件保存到之前的`VOC2007`文件夹下面。
