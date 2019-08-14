@@ -81,7 +81,7 @@ item {
     from_detection_checkpoint: true
 ```
 
-&emsp;&emsp;&emsp;这2行需要删除或注释
+&emsp;&emsp;这2行需要删除或注释掉
 
 &emsp;到这就可以开始训练了，但为了输出loss信息，先在`model_main.py`文件的`import`区域之后添加`tf.logging.set_verbosity(tf.logging.INFO)`，接着在`MobileNetV2-SSDLite`目录下执行以下命令：
 
@@ -105,4 +105,17 @@ python model_main.py \
     display: inline-block;
     color: #999;
     padding: 2px;">训练过程</div>
+</center>
+
+&emsp;此外也可以用`tensorboard --logdir=training`可视化训练过程：
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-07-22-用Tensorflow的object detection api训练自己的数据/mAP.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">可视化训练过程</div>
 </center>
