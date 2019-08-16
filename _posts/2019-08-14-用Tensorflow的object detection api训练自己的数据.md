@@ -86,12 +86,7 @@ item {
 &emsp;到这就可以开始训练了，但为了输出loss信息，先在`model_main.py`文件的`import`区域之后添加`tf.logging.set_verbosity(tf.logging.INFO)`，接着在`MobileNetV2-SSDLite`目录下执行以下命令：
 
 ```
-python model_main.py \
-    --pipeline_config_path=training/ssdlite_mobilenet_v2_coco.config \
-    --model_dir=training \
-    --num_train_steps=400000 \
-    --num_eval_steps=20 \
-    --alsologtostderr
+python models/research/object_detection/model_main.py --pipeline_config_path=training/ssdlite_mobilenet_v2_coco.config --model_dir=training --num_train_steps=400000 --num_eval_steps=20 --alsologtostderr
 ```
 
 &emsp;接着就开始训练了，正常的话可以应该有如下的输出：
