@@ -1,17 +1,16 @@
 ---
 layout:     post
-title:      用Tensorflow的object detection api训练自己的数据
-subtitle:   Training your own data with Tensorflow's object detection API
-date:       2019-08-14
+title:      ShuffleNet--一个非常有效的移动卷积神经网络
+subtitle:   ShuffleNet--An Extremely Efficient Convolutional Neural Network for Mobile
+date:       2019-08-19
 author:     CJR
-header-img: img/2019-07-22-用Tensorflow的object detection api训练自己的数据/post-bg.jpg
+header-img: img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/post-bg.jpg
 catalog: true
 mathjax: false
 tags:
-    - Tensorflow
-    - Object Detection
     - Lightweight Network
-    - MobileNetV2-SSDLite
+    - ShuffleNet
+    - CNN
 ---
 
 ## Tensorflow的object detection api
