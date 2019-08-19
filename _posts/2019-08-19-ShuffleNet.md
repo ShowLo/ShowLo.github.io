@@ -4,7 +4,7 @@ title:      用Tensorflow的object detection api训练自己的数据
 subtitle:   Training your own data with Tensorflow's object detection API
 date:       2019-08-14
 author:     CJR
-header-img: img/2019-08-14-用Tensorflow的object detection api训练自己的数据/post-bg.jpg
+header-img: img/2019-07-22-用Tensorflow的object detection api训练自己的数据/post-bg.jpg
 catalog: true
 mathjax: false
 tags:
@@ -99,7 +99,7 @@ python models/research/object_detection/model_main.py \
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-14-用Tensorflow的object detection api训练自己的数据/train.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-07-22-用Tensorflow的object detection api训练自己的数据/train.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
@@ -112,7 +112,7 @@ python models/research/object_detection/model_main.py \
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-14-用Tensorflow的object detection api训练自己的数据/mAP.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-07-22-用Tensorflow的object detection api训练自己的数据/mAP.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
