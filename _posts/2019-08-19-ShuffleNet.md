@@ -13,9 +13,9 @@ tags:
     - CNN
 ---
 
-## Tensorflow的object detection api
+# ShuffleNet
 
-&emsp;之前的文章有用caffe去训练一个物体检测网络MobileNetV2-SSDLite，然后这里是用Tensorflow的object detection api训练MobileNetV2-SSDLite。
+&emsp;ShuffleNet是Face++在2017年发布的一个极有效率且可以运行在手机等移动设备上的网络结构，文章也发表在了CVPR2018上，原文可见[ShuffleNet: An Extremely Efficient Convolutional Neural Network for Mobile Devices](https://arxiv.org/abs/1707.01083)。
 
 ---
 
