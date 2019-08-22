@@ -147,50 +147,89 @@ tags:
 
 ### 4.2 与其他结构单元比较
 
-&emsp;VGG、ResNet、GoogleNet、ResNeXt、Xception等最新领先的卷积单元，在大模型(如$\le$1 GFLOPs)上追求最先进的结果，但没有充分探索低复杂度条件。在本节中，我们考察了各种构建块，并在相同的复杂度约束下与ShuffleNet进行了比较。
+&emsp;VGG、ResNet、GoogleNet、ResNeXt、Xception等最新领先的卷积单元，在大模型(如$\ge$1 GFLOPs)上追求最先进的结果，但没有充分探索低复杂度条件。在本节中，我们考察了各种构建块，并在相同的复杂度约束下与ShuffleNet进行了比较。
 
-&emsp;
+&emsp;为了进行公平的比较，我们使用了如表1所示的整体网络架构。我们将阶段2-4中的ShuffleNet单元替换为其他结构，然后调整通道的数量，以确保复杂性保持不变。我们研究的结构包括:
 
-## 5. 网络的改进
+* *VGG-like.*&emsp;根据VGG net的设计原则，我们使用了一个两层的3×3卷积作为基本构建块。有所不同的是，我们在每次卷积之后都添加了一个批归一化层，使端到端的训练更加容易。
 
-&emsp;
+* *ResNet.*&emsp;实验中采用了“瓶颈”设计，在[Deep residual learning for image recognition]中得到了较好的验证。与之相同，瓶颈比率也是1:4。
 
-### 5.2 非线性
+* *Xception-like.*&emsp;在[Deep learning with depthwise separable convolutions]中提出的原始结构涉及不同阶段的花哨设计或超参数，我们发现很难在小模型上进行公平的比较。我们将分组逐点卷积和通道重排操作从ShuffleNet中去掉（也相当于ShuffleNet中g=1），得到的结构与其中“深度可分离卷积”的思想相同，在这里称为*Xception-like*结构。
 
-&emsp;
+* *ResNeXt.*&emsp;我们使用cardinality=16和瓶颈比=1:2的设置，如[Aggregated residual transformations for deep neural networks]中建议的那样。我们还研究了其他设置，例如瓶颈比=1:4，并得到了类似的结果。
 
-#### 5.2.1 Large squeeze-and-excite
+&emsp;我们使用完全相同的设置来训练这些模型。结果如表4所示。在不同的复杂性下，我们的ShuffleNet模型比大多数其他模型有显著的优势。有趣的是，我们发现了特征图通道与分类精度之间的经验关系。有趣的是，我们发现了特征图通道与分类精度之间的经验关系。例如，在38 MFLOPs复杂度下，VGG-like、ResNet、ResNeXt、Xceplike、ShuffleNet模型第4阶段的输出通道（见表1）分别为50、192、192、288、576，这与精度的提高是一致的。由于ShuffleNet的高效设计，我们可以在给定的计算预算下使用更多的通道，从而通常可以获得更好的性能。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table4.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表4. 分类误差vs各种结构（%，数字越小表示性能越好）。我们不会在较小的网络上报告VGG-like结构，因为精度明显较差。</div>
+</center>
 
-### 5.3 MobileNetV3定义
+&emsp;请注意，上述比较不包括GoogleNet或Inception系列。我们发现在小型网络中生成这样的Inception结构并非易事，因为Inception模块的设计涉及太多的超参数。作为参考，第一个GoogleNet版本有31.3%的top-1错误率，代价是1.5 GFLOPs(见表6)。更复杂的Inception版本更准确，但是涉及显著增加的复杂性。最近，Kim等人提出了一种轻量级网络结构PVANET，采用Inception单元。我们重新实现的PVANET（224×224输入大小）分类错误率为29.7%，计算复杂度为557 MFLOPs，而我们的ShuffleNet 2x模型（g=3）分类错误率为26.3%，计算复杂度为524 MFLOPs（见表6）。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table6.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表6. 复杂度比较。*由BVLC实现（https://github.com/bvlc/caffe/tree/master/models/bvlc_googlenet）</div>
+</center>
 
-## 6. 实验
+### 4.3 与MobileNets和其他框架进行比较
 
-&emsp;
+&emsp;最近Howard等人提出了MobileNets，是主要针对移动设备的高效网络架构。MobileNet采用了[Xception]的深度可分离卷积的思想，并在小模型上取得了最先进的结果。
 
-### 6.1 分类
+&emsp;表5比较了不同复杂度级别下的分类得分。很明显，我们的ShuffleNet模型在所有的复杂性上都优于MobileNet。虽然我们的ShuffleNet网络是专门为小模型（<150 MFLOPs）设计的，但我们发现对于较高的计算成本它仍然比MobileNet好，例如在500 MFLOPs的情况下，比MobileNet 1×更精确3.1%。对于较小的网络（∼40MFLOPs），ShuffleNet比MobileNet高出7.8%。注意，我们的ShuffleNet架构包含50层，而MobileNet只有28层。为了更好地理解，我们还尝试通过移除阶段2-4中的一半块（见表5中的“shufflenet 0.5×shallow（g=3）”）构造26层的架构。结果表明，浅模型仍然是明显好于相应的MobileNet，这意味着ShuffleNet的有效性主要是高效结构的结果，而不是深度。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table5.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表5. ShuffleNet vs. MobileNet （在ImageNet分类任务上）</div>
+</center>
 
-#### 6.1.1 训练设置
+&emsp;表6将我们的ShuffleNet与一些流行的模型进行了比较。结果表明，在精度相近的情况下，ShuffleNet比其他模型更有效。例如，ShuffleNet 0.5×理论上比AlexNet快18倍，分类得分相当。我们将在第4.5节中评估实际运行时间。同样值得注意的是，简单的体系结构设计使ShuffleNet能够轻松地配备最新进展，如[Squeeze-and-excitation networks，Swish: a self-gated activation function]。例如，在[SENet]中，作者提出了挤压和激发（SE）块，在大型ImageNet模型上实现了最先进的结果。我们发现SE模块与ShuffleNet骨干相结合也起到了作用，例如，将ShuffleNet 2×的top-1错误率提升到24.7%（如表5所示）。有趣的是，虽然理论复杂度的增加可以忽略不计，但我们发现，在移动设备上使用SE模块的ShuffleNet通常比“原始”ShuffleNet慢25～40%，这意味着实际的加速评估对于低成本架构设计至关重要。在第4.5节中，我们将做进一步的讨论。
 
-&emsp;
+### 4.4 泛化能力
 
-#### 6.1.2 测量设置
+&emsp;为了评估迁移学习的泛化能力，我们以MS COCO目标检测为任务，对我们的ShuffleNet模型进行了测试。我们采用Faster-RCNN作为检测框架，使用公开发布的Caffe代码进行默认设置的训练。与[MobileNets]类似，模型是在COCO train+val数据集上训练的，剔除5000张minival图像，我们在minival集上进行测试。表7显示了在两种输入分辨率下训练和评估结果的比较。将ShuffleNet 2×与复杂度相当（524与569 MFLOPs）的MobileNet进行比较，我们的ShuffleNet 2×在两个分辨率上都大大超过MobileNet；我们的ShuffleNet 1×在600×分辨率上也达到了与MobileNet相当的结果，但是降低了约4倍复杂度。我们推测，这一显著的收益部分是由于Shuffleet简单的架构设计，没有其他花里胡哨的东西。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table7.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表7. ShuffleNet vs. MobileNet （在ImageNet分类任务上）</div>
+</center>
 
-### 6.2 结果
+### 4.5 实际加速评估
 
-&emsp;
+&emsp;最后，我们评估了基于ARM平台的移动设备上的ShuffleNet模型的实际推理速度。虽然具有较大组数(例如g=4或g=8)的ShuffleNet通常具有更好的性能，但是我们发现在当前实现中它的效率较低。根据经验，g = 3通常在准确性和实际推理时间之间有一个适当的平衡。如表8所示，测试使用了三个输入分辨率。由于内存访问和其他开销，我们发现在实现中，每减少4倍理论上的复杂性，就会导致约2.6倍实际加速。然而，与AlexNet相比，我们的ShuffleNet 0.5×模型仍然在可比较的分类精度下达到约13倍实际加速（理论加速为18倍），这比以前的AlexNet级模型或加速方法快得多。
 
-## 7. 结论与未来工作
-
-&emsp;
-
-## 附录A 不同分辨率和乘数的性能表
-
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table8.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表8. 移动设备上的实际推理时间（数字越小表示性能越好）。该平台基于单个高通公司Snapdragon 820处理器。所有结果都用单线程进行评估。</div>
+</center>
