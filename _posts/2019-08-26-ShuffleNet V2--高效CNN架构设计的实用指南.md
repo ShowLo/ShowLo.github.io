@@ -116,200 +116,251 @@ $$
 
 &emsp;其中g为组数，$B=hwc_{1}c_{2}/g$为FLOPs。可以看出，给定固定的输入形状$c_{1}\times h\times w$，计算量B, MAC随着g的增大而增大。
 
-## 3. 方法
-
-### 3.1 用于分组卷积的通道重排
-
-&emsp;现代卷积神经网络通常由相同结构的重复构建块组成。其中，最先进的网络，如Xception和ResNeXt，在构建块中引入了高效的深度可分卷积或组卷积，从而在表示能力和计算成本之间取得了很好的权衡。然而，我们注意到这两种设计都没有完全考虑到1×1卷积（也称为逐点卷积），这需要相当大的复杂性。例如，在ResNeXt中，只有3×3层具有分组卷积。 因此，对于ResNeXt中的每个残差单元，逐点卷积占用93.4%的乘法-加法。在微型网络中，昂贵的逐点卷积会导致有限的通道来满足复杂度约束，这可能会严重损害精度。
-
-&emsp;为了解决这个问题，一个简单的解决方案是在1×1层上应用通道稀疏连接，例如分组卷积。通过确保每个卷积只对对应的输入信道组进行运算，分组卷积显著降低了计算成本。然而，如果多个分组卷积叠加在一起，就会产生一个副作用：来自某个通道的输出只来自一小部分输入通道。图1(a)为两个叠加分组卷积层的情况。很明显，某个组的输出只与组内的输入相关。此属性会阻塞通道组之间的信息流并削弱表征能力。
+&emsp;为了研究在实际应用中的影响，通过叠加10个分组逐点卷积层，建立了一个基准网络。表2报告了在固定总FLOPs时使用不同组数的运行速度。很明显，使用大组数会显著降低运行速度。例如，在GPU上使用8组比使用1组（标准密集卷积）慢两倍多，在ARM上慢30%。这主要是由于MAC的增加。我们注意到，我们的实现经过了特别的优化，比一组一组地计算卷积要快得多。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/figure1.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/table2.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">图1. 用两个叠加的分组卷积进行通道重排。GConv代表分组卷积。a）两个具有相同组数的叠加卷积层。每个输出通道仅与组内的输入通道相关。当GConv2在GConv1之后从不同的组中获取数据时，输入和输出通道完全相关；c）使用通道重排的与b）等效的实现。</div>
+    padding: 2px;">表2. 准则2的验证实验。测试了组数g的四个值，而四个值下的总FLOPs是通过改变总通道数c来固定的，输入图像大小为56×56。</div>
 </center>
 
-&emsp;如果我们允许组卷积得到来自不同组的输入数据（如图1(b)所示），那么输入和输出通道将是完全相关的。具体来说，对于前一组层生成的feature map，我们可以先将每组中的通道划分为几个子组，然后在下一层中为每一组提供不同的子组。这可以通过通道重排操作高效优雅地实现（图1(c)）：假设卷积层有g组，输出有g×n个通道；我们首先将输出通道维数reshape为（g，n），转置，然后将其展平，作为下一层的输入。注意，即使两个卷积的组数不同，操作仍然有效。此外，信道洗牌也是可微的，这意味着它可以嵌入到网络结构中进行端到端训练。此外，通道重排也是可微的，这意味着它可以嵌入到网络结构中进行端到端训练。
+&emsp;因此，我们建议根据目标平台和任务仔细选择组数。使用较大的组号是不明智的，因为这可能使使用更多的通道成为可能，因为精度提高的好处很容易被快速增长的计算成本所抵消。
 
-&emsp;通道重排操作使得构建具有多组卷积层的更强大的结构成为可能。在下一小节中，我们将介绍一种具有通道重排和分组卷积的高效网络单元。
+**（G3）网络碎片化降低了并行度。** 在GoogLeNet系列和自动生成体系结构中，每个网络块都广泛采用“多路径”结构。使用许多小的操作符（这里称为“片段操作符”），而不是一些大的操作符。例如，在NASNET-A中，碎片操作符的数量（即一个构建块中单个卷积或池化操作的数量）为13。相反，在像ResNet这样的常规结构中，这个数字是2或3。
 
-### 3.2 ShuffleNet单元
+&emsp;虽然这种碎片化的结构已被证明有利于提高精度，但它可能会降低效率，因为它对GPU等具有强大并行计算能力的设备不友好。它还引入了额外的开销，比如核启动和同步。
 
-&emsp;利用通道重排的优点，提出了一种专为小型网络设计的新型ShuffleNet单元。我们从图2(a)中瓶颈单元的设计原理出发，它是一个残差块。在其残差分支中，对于3×3层，我们在瓶颈特征图上应用了计算量较少的3×3深度卷积。然后，我们将第一个1×1层替换为分组逐点卷积，然后进行通道重排操作，形成一个ShuffleNet单元，如图2(b)所示。第二个分组逐点卷积的目的是恢复通道维数以匹配shortcut路径。为了简单起见，我们不在第二个逐点卷积层之后应用额外的通道重排操作，因为它已产生可比较的成绩。批归一化（BN）和非线性的使用与[Deep residual learning for image recognition, Aggregated residual transformations for deep neural networks]相似，只是我们没有按照[Xception: Deep learning with depthwise separable convolutions]建议的在深度卷积后使用ReLU。对于将stride应用于ShuffleNet的情况，我们只做了两个修改（见图2(c)）：(i)在shortcut路径上添加一个3×3的平均池化；(ii)用通道级联替换元素相加，这样可以很容易地扩大通道尺寸，而几乎无需额外的计算成本。
+&emsp;为了量化网络碎片对效率的影响，我们评估了一系列具有不同碎片程度的网络块。具体来说，每个构建块由1到4个1×1的卷积组成，这些卷积按顺序或并行排列。块结构如附录所示。每个块重复堆叠10次。表3中的结果表明，GPU上的碎片化显著降低了速度，例如4-碎片结构比1-碎片慢3倍。在ARM上，减速相对较小。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/figure2.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/table3.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">图2. ShuffleNet单位。a）具有深度卷积（DWConv）的瓶颈单元；b）具有分组逐点卷积（GConv）和通道重排的ShuffleNet单元；c）具有stride=2的ShuffleNet单元。</div>
+    padding: 2px;">表3. 准则3的验证实验。c表示1-fragment的通道数。调整其他碎片结构中的通道数，使FLOPs与1-fragment相同。输入图像大小为56×56。</div>
 </center>
 
-&emsp;由于分组逐点卷积与通道重排的结合，使得shuffle单元中的所有分量都能得到有效的计算。与ResNet(瓶颈设计)和ResNeXt相比，我们的结构在相同的设置下复杂度更低。例如，给定输入大小$c\times h\times w$，瓶颈通道数$m$, ResNet单元需要$hw(2cm+9m^{2})$FLOPs，ResNeXt需要$hw(2cm+9m^{2}/g)$FLOPs，而我们的ShuffleNet单元只需要$hw(2cm/g + 9m)$FLOPs。其中g表示卷积的组数。换句话说，给定计算预算，ShuffleNet可以使用更广的特征图。我们发现这对于小型网络非常重要，因为小型网络通常没有足够的通道来处理信息。
+**（G4）元素级（element-wise）操作是不可忽略的。** 如图2所示，在轻量级模型中，元素操作占用了相当多的时间，尤其是在GPU上。这里的元素级操作符包括ReLU、AddTensor、AddBias等。他们有小的FLOPs，但相对较重的MAC。特别地，我们还将深度卷积看作是一种元素级操作，因为它也具有很高的MAC/FLOPs比。
 
-&emsp;此外，在ShuffleNet中，深度卷积只在瓶颈特征图上执行。虽然深度卷积通常具有非常低的理论复杂度，但是我们发现在低功耗的移动设备上很难有效地实现，这可能是因为与其他密集操作相比，它的计算/内存访问率更低。[Xception]中也提到了这种缺点，它有一个基于TensorFlow的运行时库。在ShuffleNet单元中，我们故意只在瓶颈上使用深度卷积，以尽可能地避免开销。
-
-### 3.3 网络体系结构
-
-&emsp;构建在ShuffleNet单元上，我们在表1中展示了整个ShuffleNet架构。该网络主要由一组分为三个阶段的ShuffleNet单元组成。每个阶段的第一个构建块使用stride=2。一个阶段中的其他超参数保持不变，下一个阶段的输出通道加倍。我们为每个ShuffleNet单元将瓶颈通道的数量设置为输出通道的1/4。我们的目的是提供一个尽可能简单的参考设计，尽管我们发现进一步的超参数调优可能会产生更好的结果。
-
-&emsp;在ShuffleNet单元中，组数g控制逐点卷积的连接稀疏性。表1探索了不同的组数，我们调整了输出通道，以确保总体计算成本大致不变(∼140 MFLOPs)。显然，对于给定的复杂度约束，较大的组数会产生更多的输出通道(因此会产生更多的卷积滤波器)，这有助于编码更多的信息，但由于相应的输入通道有限，这也可能导致单个卷积滤波器的性能下降。在第4.1.1节中，我们将研究这个数字受不同计算约束的影响。
+&emsp;为了验证，我们实验了ResNet中的“瓶颈”单元（1×1 conv + 3×3 conv + 1×1 conv, ReLU + shortcut连接）。分别删除ReLU和shortcut操作。表4中报告了不同变体的运行时间。去除ReLU和shortcut后，GPU和ARM均获得了20%左右的加速。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table1.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/table4.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表1. ShuffleNet架构。复杂度用FLOPs来计算，即浮点乘法加法的数目。注意，对于第2阶段，我们不在第一个逐点卷积层上应用分组卷积，因为输入通道数相对较小。</div>
+    padding: 2px;">表4. 准则4的验证实验。RELU和shortcut操作分别从“瓶颈”单元中删除。c是单元中的通道数。该单元重复堆叠10次，以对速度进行基准测试。</div>
 </center>
 
-&emsp;要将网络自定义为所需的复杂性，我们可以简单地在通道的数量上应用一个比例因子s。例如，我们将表1中的网络表示为“ShuffleNet 1×”，那么“ShuffleNet s×”表示将ShuffleNet 1×中的滤波器数量乘以s倍，因此总体复杂度大约为ShuffleNet 1×的$s^{2}$倍。
+**结论和讨论。** 基于上述指导思想和实证研究，我们认为有效的网络架构应该(1)使用“均衡”卷积（通道宽度相等）；(2)注意使用分组卷积的成本；(3)降低碎片化程度；(4)减少元素级操作。这些理想的特性依赖于平台特性（例如内存操作和代码优化），这些特性超出了理论FLOPs。在实际的网络设计中应考虑这些因素。
+
+&emsp;轻量级神经网络体系结构的最新进展大多基于FLOPs度量，没有考虑上述特性。例如，ShuffleNet V1严重依赖于分组卷积（违反G2）和类似瓶颈的构建块（违反G1）。MobileNet V2使用了一个违反G1的反向瓶颈结构。它在“厚”特征图上使用深度卷积和ReLUs。这违反了G4。自动生成的结构高度碎片化，违反G3。
+
+## 3. ShuffleNet V2：一个高效的架构
+
+**回顾ShuffleNet V1。** ShuffleNet是一种最先进的网络架构。被广泛应用于低端设备，如手机。它激励着我们的工作。因此，本文首先对其进行了回顾和分析。
+
+&emsp;根据[ShuffleNet]，轻量级网络的主要挑战是，在给定的计算预算（FLOPs）下，只能负担得起有限数量的特征通道。为了在不显著增加FLOPs的情况下增加通道数量，[ShuffleNet]采用了两种技术：分组逐点积和瓶颈式结构。然后引入“通道重排”操作，使不同的通道组之间能够进行信息通信，从而提高准确性。构建块如图3(a)和(b)所示。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/figure3.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图3. ShuffleNet V1和这项工作的构建块。（a）：基本ShuffleNet单元；（b）空间下采样（2倍）的ShuffleNet单元；（c）我们的基本单元；（d）我们的空间下采样（2倍）的单元。DWConv：深度卷积。GConv：分组卷积。</div>
+</center>
+
+&emsp;如第2节所述，分组逐点卷积和瓶颈结构都增加了MAC（G1和G2）。这一成本是不可忽视的，特别是对轻量级模型。此外，使用太多组违反了G3。shortcut连接中的元素级“Add”操作也是不可取的（G4）。因此，为了获得较高的模型容量和效率，关键问题是如何在不使用密集卷积和过多组的情况下保持大量和等宽的通道。
+
+**通道分割和ShuffleNet V2。** 为了实现上述目的，我们引入了一个简单的操作符，称为通道分割。如图3(c)所示。在每个单元的开始，将$c$特征通道的输入分为$c-c'$和$c'$通道两个分支。遵循G3，一个分支仍然作为恒等分支。另一个分支由三个具有相同输入和输出通道的卷积组成，以满足G1。与[ShuffleNet]不同，这两个1×1卷积不再是组-级（group-wise）的。部分原因是遵循G2，部分原因是分割操作已经生成了两个组。
+
+&emsp;卷积后，将两个分支连接起来。因此，通道数保持不变（G1）。然后使用与[ShuffleNet]中相同的“通道重排”操作来支持两个分支之间的信息通信。
+
+&emsp;重排之后，下一个单元开始。注意，ShuffleNet V1中的“Add”操作不再存在。像ReLU和深度卷积这样的元素级操作只存在于一个分支中。此外，连续的三个元素操作（“Concat”、“通道洗牌”和“通道分割”）合并为一个元素级操作。G4认为这些变化是有益的。
+
+&emsp;对于空间下采样，对单元进行了微调，如图3(d)所示。移除通道分割操作符。因此，输出通道的数量增加了一倍。
+
+&emsp;提议的构建块(c)(d)以及生成的网络称为ShuffleNet V2。基于以上分析，我们得出结论，该体系结构设计是高效的，因为它遵循了所有的准则。
+
+&emsp;构建块被反复堆叠，以构建整个网络。为了简单起见，我们设$c'=c/2$。总体网络结构与ShuffleNet V1相似，如表5所示。唯一的区别是：在全局平均池化之前添加了一个额外的1×1卷积层来混合特征，这在ShuffleNet V1中是不存在的。与[ShuffleNet]类似，将每个块中的通道数进行缩放，生成不同复杂度的网络，标记为0.5×、1×等。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/table5.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表5. ShuffleNet V2的总体架构，适用于四个不同级别的复杂度。</div>
+</center>
+
+**网络精度分析。** 为ShuffleNet v2不仅高效，而且准确。有两个主要原因。首先，每个构建块的高效率使得使用更多的特征通道和更大的网络容量成为可能。
+
+&emsp;其次，在每个块中，有一半的特性通道（当$c'=c/2$时）直接穿过块并加入下一个块。这可以看作是一种特性重用，类似于DenseNet和CondenseNet。
+
+&emsp;在DenseNet中，为了分析特征重用模式，绘制层间权重的l1范数，如图4(a)所示。很明显，相邻层之间的连接比其他层之间的连接更强。这意味着所有层之间的紧密连接可能会引入冗余。最近的CondenseNet也支持这一观点。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/figure4.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图4. DenseNet和ShuffleNet V2特征重用中的模式说明。（a）（由[DenseNet]提供）模型中卷积层的平均绝对滤波器权重。像素的颜色（s，l）编码了连接层s到l的权重的l1范数。（b）像素的颜色（s，l）表示ShuffleNet V2中直接连接块s到块l的通道数。所有像素值都归一化为[0，1]。</div>
+</center>
+
+&emsp;在ShuffleNet V2中，很容易证明第$i$个和第$i+j$个构建块之间的“直接连接”的通道的数量为$r^{j}c$，其中$r=(1-c')/c$。换句话说，特征重用量随着两个块之间的距离呈指数衰减。在距离较远的块之间，特征重用变得非常弱。图4(b)绘制了与图(a)类似的可视化，其中$r=0.5$。注意(b)中的模式类似于(a)。
+
+&emsp;因此，ShuffleNet V2的结构通过设计实现了这种类型的特征重用模式。它具有与DenseNet中类似的特征重用的优点，但如前所述，它的效率要高得多。这在实验中得到验证，见表8。
 
 ## 4. 实验
 
-&emsp;我们主要是在ImageNet 2012分类数据集上评估我们的模型。我们遵循[Aggregated residual transformations for deep neural networks]中使用的大多数训练设置和超参数，但有两个例外:(i)我们将权重衰减设置为4e-5而不是1e-5，采用线性衰减学习率策略(由0.5降至0)；(ii)我们使用稍微不那么激进的规模扩大（scale augmentation）来进行数据预处理。在[MobileNets]中也引用了类似的修改，因为这样的小网络通常存在拟合不足而不是过拟合。在4个gpu上训练一个3×105迭代的模型需要1 - 2天，批处理大小设置为1024。为了进行基准测试，我们比较了在ImageNet验证集上的single-crop top-1性能，即从256×输入图像裁剪224×224中心视图，并评估了分类精度。我们对所有模型使用完全相同的设置，以确保公平的比较。
+&emsp;我们的消融实验是在ImageNet 2012分类数据集上进行的。按照通常的做法，所有网络都有四个级别的计算复杂度，即大约40、140、300和500+ MFLOPs。这种复杂性在移动场景中非常典型。其他超参数和协议与ShuffleNet V1完全相同。
 
-### 4.1 消融实验
+&emsp;我们与以下网络架构进行比较：
 
-&emsp;ShuffleNet的核心思想在于分组逐点卷积和通道重排操作。在本小节中，我们分别对它们评估。
+- *ShuffleNet V1.* 在[ShuffleNet]中，比较了一系列组数g。结果表明，$g=3$在精度和速度之间具有较好的平衡关系。这也符合我们的观察。在这项工作中，我们主要使用$g=3$。
 
-#### 4.1.1 分组逐点卷积
+- *MobileNet V2.* 它比MobileNet V1好。为了进行全面的比较，我们在原始论文和我们的复现中都报告了准确性，因为在原论文中缺少一些结果。
 
-&emsp;为了评估分组逐点卷积的重要性，我们比较了具有相同复杂度的ShuffleNet模型，其组数从1到8不等。如果组数等于1，则不涉及分组逐点卷积，则ShuffleNet单元成为一个“Xception-like”结构。为了更好地理解，我们还将网络的宽度扩展到3种不同的复杂性，并分别比较它们的分类性能。结果如表2所示。
+- *Xception.* 原始的Xception模型非常大（FLOPs>2G），超出了我们的比较范围。最近的工作提出了一种改进的轻量级Xception结构，该结构在精度和效率之间有更好的权衡。我们和这个变体进行比较。
+
+- *DenseNet.* 原始工作只报告大型模型的结果（FLOPs>2G）。为了进行直接比较，我们按照表5中的架构设置重新实现了它，其中阶段2-4中的构建块由DenseNet块组成。我们调整通道的数量，以满足不同的目标复杂性。
+
+&emsp;表8总结了所有结果。我们从不同的角度分析这些结果。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table2.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/table8.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表2. 分类误差VS组数g（较小的数字代表更好的性能）</div>
+    padding: 2px;">表8. 在两个平台和四个计算复杂度级别上，比较几种网络架构对分类错误（验证集、单中心裁剪）和速度的影响。结果按复杂度级别分组，以便更好地进行比较。GPU的批大小为8，ARM的批大小为1。图像大小为224×224，除了：[*]160×160和[**]192×192。由于目前缺乏有效的实现，我们不提供CondenseNets的速度测量。</div>
 </center>
 
-&emsp;从结果中我们可以看出，有分组卷积（g>1）的模型始终比没有分组逐点卷积（g=1）的模型表现得更好，较小的模型往往从分组中获益更多。例如，对于ShuffleNet 1×最佳条目（g=8），它比对应条目好1.2%，而对于ShuffleNet 0.5×和0.25×，两者之间的差距分别为3.5%和4.4%。注意，对于给定的复杂性约束，分组卷积允许更多的feature map通道，因此我们假设性能的提高来自于更广泛的feature map，它有助于编码更多的信息。此外，更小的网络包含更薄的特征图，这意味着它从放大的特征图中获益更多。
+*准确率 vs. FLOPs* 很明显，所提出的ShuffleNet V2模型比所有其他网络都要出色得多，尤其是在较小的计算预算下。此外，我们注意到MobileNet V2在40MFLOPs级别上（224×224图像大小）表现较差。这可能是由于通道太少造成的。相反，我们的模型没有这个缺点，因为我们的高效设计允许使用更多的通道。此外，虽然我们的模型和DenseNet都重用了特征，但是我们的模型要有效得多，如第3节所讨论的。
 
-&emsp;表2还显示，对于某些模型(如ShuffleNet 0.5×)，当组数变得相对较大时（例如g=8），分类分数饱和甚至下降。随着组数的增加（因此特征图的范围更广），每个卷积滤波器的输入通道变得更少，这可能会损害表示能力。有趣的是，我们也注意到，对于如ShuffleNet 0.25×这样较小的模型，较大的组数往往会得到更好的一致性结果，这表明更宽的特征图为较小的模型带来了更多的好处。
+&emsp;表8还将我们的模型与其他最先进的网络进行了比较，包括CondenseNet、IGCV2和IGCV3。我们的模型在不同的复杂度级别上表现得更好。
 
-#### 4.1.2 通道重排 vs 不重排
+*推理速度 vs. FLOPs/准确率.* 对于四种精度较好的架构ShuffleNet V2、MobileNet V2、ShuffleNet V1和Xception，我们将它们的实际速度与FLOPs进行比较，如图1(c)和(d)所示。关于不同分辨率的更多结果见附录表1。
 
-&emsp;shuffle操作的目的是为多个分组卷积层实现跨组信息流。表3比较了具有/不具有通道重排的ShuffleNet结构的性能（组数设置为3或8）。评估是在三种不同的复杂程度下进行的。很明显，在不同的设置下，通道重排可以不断地提高分类分数。特别是当组数较大时（如g=8），通道重排模型的性能明显优于同类模型，说明了跨组信息交换的重要性。
+&emsp;ShuffleNet V2显然比其他三个网络更快，尤其是在GPU上。例如，在500MFLOPs时，ShuffleNet V2比MobileNet V2快58%，比ShuffleNet V1快63%，比Xception快25%。在ARM上，ShuffleNet V1、Xception和ShuffleNet V2的速度相当；然而，MobileNet V2要慢得多，尤其是在较小的FLOPs下。我们认为这是因为MobileNet V2有更高的MAC（见第二节G1和G4），这在移动设备上很重要。
+
+&emsp;与MobileNet V1、IGCV2和IGCV3相比，我们有两个观察结果。首先，虽然MobileNet V1的精度不高，但是它在GPU上的速度比所有的同类产品都要快，包括ShuffleNet V2。我们认为这是因为它的结构满足大多数建议的准则（例如，对于G3, MobileNet V1的碎片甚至比ShuffleNet V2更少）。其次，IGCV2和IGCV3速度较慢。这是由于使用了太多的卷积组。这两项观察都符合我们提出的准则。
+
+&emsp;最近，自动模型搜索成为CNN架构设计的一个很有前途的趋势。表8的底部部分评估了一些自动生成的模型。我们发现它们的速度相对较慢。我们认为这主要是因为使用了太多的碎片（参见G3）。尽管如此，这一研究方向仍然很有前景。例如，如果模型搜索算法与我们提出的准则相结合，并在目标平台上评估直接度量（速度），可能会得到更好的模型。
+
+&emsp;最后，图1(a)和(b)总结了精度与直接度量--速度的结果。我们得出结论，ShuffeNet V2在GPU和ARM上都是最好的。
+
+*与其他方法的兼容性.* ShuffeNet V2可以与其他技术相结合，进一步提高性能。当配备挤压-激励（SE）模块时，ShuffleNet V2的分类精度提高了0.5%，但速度有一定的损失。模块结构如附录图2(b)所示。结果见表8(底部部分)。
+
+*对大型模型的泛化.* 虽然我们的消融实验主要用于轻量级的情况下，但ShuffleNet V2可以用于大型模型(比如FLOPs≥2G)。表6比较了50层ShuffleNet V2（详见附录）与对应版本的ShuffleNet V1和ResNet-50。ShuffleNet V2仍然在2.3GFLOPs上优于ShuffleNet V1，并且以40%的更少的FLOPs超过ResNet-50。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table3.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/table6.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表3. 具有/不具有通道重排的ShuffleNet（数字越小表示性能越好）</div>
+    padding: 2px;">表6. 大型模型的结果。</div>
 </center>
 
-### 4.2 与其他结构单元比较
+&emsp;对于非常深的ShuffleNet V2（例如超过100层），为了使训练更快地收敛，我们通过添加一个残差路径（详见附录）来稍微修改基本的ShuffleNet V2单元。表6给出了一个包含164层的ShuffleNet V2模型，其中包含SE组件（详见附录）。与以前的最先进的模型相比，它在更少的FLOPs下获得了更高的精度。
 
-&emsp;VGG、ResNet、GoogleNet、ResNeXt、Xception等最新领先的卷积单元，在大模型(如$\ge$1 GFLOPs)上追求最先进的结果，但没有充分探索低复杂度条件。在本节中，我们考察了各种构建块，并在相同的复杂度约束下与ShuffleNet进行了比较。
+*目标检测.* 为了评估泛化能力，我们还测试了COCO目标检测任务。我们使用最先进的轻型探测器-Light-Head RCNN作为我们的框架，并遵循相同的训练和测试协议。只有骨干网络被我们的取代。模型在ImageNet上进行预训练，然后对检测任务进行微调。除了minival集中的5000张图片外，我们使用COCO中的train+val集进行训练，并使用minival集进行测试。精度指标为COCO标准mmAP，即在box IoU阈值0.5到0.95之间的平均mAPs。
 
-&emsp;为了进行公平的比较，我们使用了如表1所示的整体网络架构。我们将阶段2-4中的ShuffleNet单元替换为其他结构，然后调整通道的数量，以确保复杂性保持不变。我们研究的结构包括:
-
-* *VGG-like.*&emsp;根据VGG net的设计原则，我们使用了一个两层的3×3卷积作为基本构建块。有所不同的是，我们在每次卷积之后都添加了一个批归一化层，使端到端的训练更加容易。
-
-* *ResNet.*&emsp;实验中采用了“瓶颈”设计，在[Deep residual learning for image recognition]中得到了较好的验证。与之相同，瓶颈比率也是1:4。
-
-* *Xception-like.*&emsp;在[Deep learning with depthwise separable convolutions]中提出的原始结构涉及不同阶段的花哨设计或超参数，我们发现很难在小模型上进行公平的比较。我们将分组逐点卷积和通道重排操作从ShuffleNet中去掉（也相当于ShuffleNet中g=1），得到的结构与其中“深度可分离卷积”的思想相同，在这里称为*Xception-like*结构。
-
-* *ResNeXt.*&emsp;我们使用cardinality=16和瓶颈比=1:2的设置，如[Aggregated residual transformations for deep neural networks]中建议的那样。我们还研究了其他设置，例如瓶颈比=1:4，并得到了类似的结果。
-
-&emsp;我们使用完全相同的设置来训练这些模型。结果如表4所示。在不同的复杂性下，我们的ShuffleNet模型比大多数其他模型有显著的优势。有趣的是，我们发现了特征图通道与分类精度之间的经验关系。有趣的是，我们发现了特征图通道与分类精度之间的经验关系。例如，在38 MFLOPs复杂度下，VGG-like、ResNet、ResNeXt、Xceplike、ShuffleNet模型第4阶段的输出通道（见表1）分别为50、192、192、288、576，这与精度的提高是一致的。由于ShuffleNet的高效设计，我们可以在给定的计算预算下使用更多的通道，从而通常可以获得更好的性能。
+&emsp;将ShuffleNet V2与其他三个轻量级模型:Xception、ShuffleNet V1和MobileNet V2在四个复杂度级别上进行比较。表7中的结果显示ShuffleNet V2的性能最好。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table4.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/table7.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表4. 分类误差vs各种结构（%，数字越小表示性能越好）。我们不会在较小的网络上报告VGG-like结构，因为精度明显较差。</div>
+    padding: 2px;">表7. COCO目标检测性能。输入图像尺寸为800×1200。FLOPs行列出了224×224输入大小下的复杂度级别。对于GPU速度评估，批大小为4。我们不测试ARM，因为[Light-head R-CNN]中所需的PSROI池化操作当前在ARM上不可用。</div>
 </center>
 
-&emsp;请注意，上述比较不包括GoogleNet或Inception系列。我们发现在小型网络中生成这样的Inception结构并非易事，因为Inception模块的设计涉及太多的超参数。作为参考，第一个GoogleNet版本有31.3%的top-1错误率，代价是1.5 GFLOPs(见表6)。更复杂的Inception版本更准确，但是涉及显著增加的复杂性。最近，Kim等人提出了一种轻量级网络结构PVANET，采用Inception单元。我们重新实现的PVANET（224×224输入大小）分类错误率为29.7%，计算复杂度为557 MFLOPs，而我们的ShuffleNet 2x模型（g=3）分类错误率为26.3%，计算复杂度为524 MFLOPs（见表6）。
+&emsp;将检测结果（表7）与分类结果（表8）进行比较，有趣的是，在分类时，准确率等级为ShuffleNet V2 $\ge$ MobileNet V2 > ShuffeNet V1 > Xception，而在检测时，该等级变为ShuffleNet V2 > Xception $\ge$ ShuffleNet V1 $\ge$ MobileNet V2。这说明，Xception在检测任务上表现良好。这可能是由于Xception构建块的感受野大于其他构建块（7 vs. 3）。受此启发，我们还通过在每个构建块的第一个逐点卷积之前引入额外的3×3深度卷积，来扩大ShuffleNet V2的感受野。这个变体表示为ShuffleNet V2*。只有少数额外的FLOPs，它进一步提高准确性。
+
+&emsp;我们还在GPU上测试运行时间。为了公平比较，批处理大小被设置为4，以确保GPU的充分利用。由于数据复制（分辨率高达800×1200）及其他检测专用操作（如PSRoI池化）的开销，不同模型之间的速度差距小于分类。尽管如此，ShuffleNet V2的性能仍然优于其他模型，例如，它比ShuffleNet V1快40%左右，比MobileNet V2快16%。
+
+&emsp;此外，变体ShuffleNet v2*具有最好的精度，仍然比其他方法更快。这引发了一个实际的问题：如何增加感受野的大小？这对于高分辨率图像中的目标检测至关重要。我们以后会研究这个话题。
+
+## 5. 结论
+
+&emsp;我们建议网络架构设计应考虑速度等直接指标，而不是FLOPs等间接指标。我们提出了实用的指导方针和一个新的架构，ShuffleNet V2。综合实验验证了该模型的有效性。我们希望这项工作能够启发未来的网络架构设计工作，使其更具有平台意识和实用性。
+
+## 附录
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table6.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/a-figure1.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表6. 复杂度比较。*由BVLC实现（https://github.com/bvlc/caffe/tree/master/models/bvlc_googlenet）</div>
+    padding: 2px;">附录图1. 实验中准则3用到的构建块。(a) 1-fragment. (b) 2-fragment-series. (c) 4-fragment-series. (d) 2-fragment-parallel. (e) 4-ragment-parallel.</div>
 </center>
 
-### 4.3 与MobileNets和其他框架进行比较
-
-&emsp;最近Howard等人提出了MobileNets，是主要针对移动设备的高效网络架构。MobileNet采用了[Xception]的深度可分离卷积的思想，并在小模型上取得了最先进的结果。
-
-&emsp;表5比较了不同复杂度级别下的分类得分。很明显，我们的ShuffleNet模型在所有的复杂性上都优于MobileNet。虽然我们的ShuffleNet网络是专门为小模型（<150 MFLOPs）设计的，但我们发现对于较高的计算成本它仍然比MobileNet好，例如在500 MFLOPs的情况下，比MobileNet 1×更精确3.1%。对于较小的网络（∼40MFLOPs），ShuffleNet比MobileNet高出7.8%。注意，我们的ShuffleNet架构包含50层，而MobileNet只有28层。为了更好地理解，我们还尝试通过移除阶段2-4中的一半块（见表5中的“shufflenet 0.5×shallow（g=3）”）构造26层的架构。结果表明，浅模型仍然是明显好于相应的MobileNet，这意味着ShuffleNet的有效性主要是高效结构的结果，而不是深度。
-
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table5.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/a-figure2.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表5. ShuffleNet vs. MobileNet （在ImageNet分类任务上）</div>
+    padding: 2px;">附录图2. 含有SE/残差的ShuffleNet v2构建块。(a)带有残差的ShuffleNet V2。(b)带有SE的ShuffleNet V2。(c)含有SE和残差的ShuffleNet V2。</div>
 </center>
 
-&emsp;表6将我们的ShuffleNet与一些流行的模型进行了比较。结果表明，在精度相近的情况下，ShuffleNet比其他模型更有效。例如，ShuffleNet 0.5×理论上比AlexNet快18倍，分类得分相当。我们将在第4.5节中评估实际运行时间。同样值得注意的是，简单的体系结构设计使ShuffleNet能够轻松地配备最新进展，如[Squeeze-and-excitation networks，Swish: a self-gated activation function]。例如，在[SENet]中，作者提出了挤压和激发（SE）块，在大型ImageNet模型上实现了最先进的结果。我们发现SE模块与ShuffleNet骨干相结合也起到了作用，例如，将ShuffleNet 2×的top-1错误率提升到24.7%（如表5所示）。有趣的是，虽然理论复杂度的增加可以忽略不计，但我们发现，在移动设备上使用SE模块的ShuffleNet通常比“原始”ShuffleNet慢25～40%，这意味着实际的加速评估对于低成本架构设计至关重要。在第4.5节中，我们将做进一步的讨论。
-
-### 4.4 泛化能力
-
-&emsp;为了评估迁移学习的泛化能力，我们以MS COCO目标检测为任务，对我们的ShuffleNet模型进行了测试。我们采用Faster-RCNN作为检测框架，使用公开发布的Caffe代码进行默认设置的训练。与[MobileNets]类似，模型是在COCO train+val数据集上训练的，剔除5000张minival图像，我们在minival集上进行测试。表7显示了在两种输入分辨率下训练和评估结果的比较。将ShuffleNet 2×与复杂度相当（524与569 MFLOPs）的MobileNet进行比较，我们的ShuffleNet 2×在两个分辨率上都大大超过MobileNet；我们的ShuffleNet 1×在600×分辨率上也达到了与MobileNet相当的结果，但是降低了约4倍复杂度。我们推测，这一显著的收益部分是由于Shuffleet简单的架构设计，没有其他花里胡哨的东西。
-
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table7.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/a-table1.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表7. ShuffleNet vs. MobileNet （在ImageNet分类任务上）</div>
+    padding: 2px;">附录表1. 表(a)比较了每个网络(整个体系结构)的速度。表(b)比较了每个网络单元的速度，我们将每个网络的10个网络单元堆叠起来；c的值表示ShuffleNet V2的通道数，我们调整通道数以保持其他网络单元的FLOPs不变。详情请参阅第4节。[∗]对于输入大小为320×320的40M FLOPs模型，为了保证GPU的利用率，将batchsize设置为8，否则我们将batchsize设置为1。</div>
 </center>
 
-### 4.5 实际加速评估
-
-&emsp;最后，我们评估了基于ARM平台的移动设备上的ShuffleNet模型的实际推理速度。虽然具有较大组数(例如g=4或g=8)的ShuffleNet通常具有更好的性能，但是我们发现在当前实现中它的效率较低。根据经验，g=3通常在准确性和实际推理时间之间有一个适当的平衡。如表8所示，测试使用了三个输入分辨率。由于内存访问和其他开销，我们发现在实现中，每减少4倍理论上的复杂性，就会导致约2.6倍实际加速。然而，与AlexNet相比，我们的ShuffleNet 0.5×模型仍然在可比较的分类精度下达到约13倍实际加速（理论加速为18倍），这比以前的AlexNet级模型或加速方法快得多。
-
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-19-ShuffleNet--一个非常有效的移动卷积神经网络/table8.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-08-26-ShuffleNet V2--高效CNN架构设计的实用指南/a-table2.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表8. 移动设备上的实际推理时间（数字越小表示性能越好）。该平台基于单个高通公司Snapdragon 820处理器。所有结果都用单线程进行评估。</div>
+    padding: 2px;">附录表2. 大型模型的架构。构建基块的卷积核形状和堆叠块数显示在括号中。降采样由conv3\_1、conv4\_1和conv5\_1执行，步长为2。对于ShuffleNet V1-50和ResNet-50，瓶颈比率设置为1:4。对于SE-ShuffleNet V2-164，我们在残差add-ReLUs之前添加SE模块（详情见附录图2）；我们将SE模块中的神经元数设置为相应构建块中通道数的1/2。详见第4节。</div>
 </center>
 
 ---
 
 ## 个人看法
 
-&emsp;其实这篇文章中最主要的创新点还是通道重排（channel shuffle）以及对应的网络构建基本块（图2）。有趣的一点是我发现图2中的(a)所示的构建块其实就是MobileNetV2的基本构建块，而MobileNetV2的发表却是在这篇论文之后，也就是说MobileNetV2用这个基本构建块又得到了更好的结果，也不知道这是否有所借鉴还是纯属巧合。。。不过MobileNetV2里面对这个基本构建块的阐述也的确要更加的透彻，而且用构建块堆叠起来的整体网络架构也是有所不同。
+&emsp;这篇文章是ShuffleNet的升级版，最主要的贡献其实在于提出了构建轻量级网络的四个准则。
