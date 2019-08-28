@@ -356,11 +356,13 @@ $$
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">附录表2. 大型模型的架构。构建基块的卷积核形状和堆叠块数显示在括号中。降采样由conv3\_1、conv4\_1和conv5\_1执行，步长为2。对于ShuffleNet V1-50和ResNet-50，瓶颈比率设置为1:4。对于SE-ShuffleNet V2-164，我们在残差add-ReLUs之前添加SE模块（详情见附录图2）；我们将SE模块中的神经元数设置为相应构建块中通道数的1/2。详见第4节。</div>
+    padding: 2px;">附录表2. 大型模型的架构。构建基块的卷积核形状和堆叠块数显示在括号中。降采样由conv3_1、conv4_1和conv5_1执行，步长为2。对于ShuffleNet V1-50和ResNet-50，瓶颈比率设置为1:4。对于SE-ShuffleNet V2-164，我们在残差add-ReLUs之前添加SE模块（详情见附录图2）；我们将SE模块中的神经元数设置为相应构建块中通道数的1/2。详见第4节。</div>
 </center>
 
 ---
 
 ## 个人看法
 
-&emsp;这篇文章是ShuffleNet的升级版，最主要的贡献有两点，一点是提出了FLOPs其实不足以衡量网络的速度，包括MAC等需要加以考虑；另一点是提出了构建轻量级网络的四个准则，然后根据四个准则，将ShuffleNet中不符合的部分进行修正，从而得到了ShuffleNetV2。
+&emsp;这篇文章是ShuffleNet的升级版，最主要的贡献是提出了FLOPs其实不足以衡量网络的速度，包括MAC和并行度等因素也需要加以考虑，然后据此提出了构建轻量级网络的四个准则，并根据四个准则，将ShuffleNet中不符合的部分进行修正，从而得到了ShuffleNetV2。
+
+&emsp;再回过头看四个准则，准则1告诉我们输入和输出通道数一致的时候MAC最小，准则2告诉我们减少分组卷积可以减小MAC，准则3告诉我们模型中的分支数越少则模型的并行度越高从而速度越快，准则4告诉我们减少element-wise操作可以加快速度。根据四个准则，再看图3所示的构建块。对比(a)和(c)，可以看到，(c)在一开始的地方有一个channel split的操作以将$c$个输入通道给拆分成$c-c'$和$c'$个通道分别进入两条支路，文章中采用$c'=c/2$，使得最后的输入通道数与输出通道数相等，符合了准则1。而且(c)中也将1×1卷积层中的group操作去掉了符合准则2，其实前面的channel split操作可以看作是一种group操作。(c)里channel shuffle的操作也移到了concat后面，因为前面已经将1×1卷积层中的group操作去掉了，所以也不用在其后添加channel shuffle操作，同时这么做也减少了支路长度，符合准则3。而将element-wise的add操作替换成concat，则符合准则4。最后因为在构建网络的时候会将(c)重复堆叠，所以channel split、concat和channel shuffle这几个操作是可以合并在一起的。
