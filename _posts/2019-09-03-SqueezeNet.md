@@ -43,7 +43,7 @@ tags:
 
 ### 2.1 模型压缩
 
-&emsp;我们工作的首要目标是找到一个只有很少参数的模型，同时保持准确性。为了解决这个问题，一个明智的方法是使用一个现有的CNN模型，并以有损的方式压缩它。事实上，围绕模型压缩这个主题已经出现了一个研究社区，并且已经报道了几种方法。Denton等人的一种相当直接的方法是将奇异值分解（SVD）应用到一个经过预训练的CNN模型中。Han等人开发了网络剪枝，从一个预训练的模型开始，用0代替阈值以下的参数，形成稀疏矩阵，最后对稀疏CNN进行几次迭代训练。最近，Han等人通过将网络剪枝与量化（小于等于8位）和哈夫曼编码相结合，扩展了它们的工作，以创建一种称为深度压缩的方法，并进一步设计了一种称为EIE的硬件加速器，该加速器直接在压缩模型上运行，实现了大幅加速和节能。
+&emsp;我们工作的首要目标是找到一个只有很少参数的模型，同时保持准确性。为了解决这个问题，一个明智的方法是使用一个现有的CNN模型，并以有损的方式压缩它。事实上，围绕模型压缩这个主题已经出现了一个研究社区，并且已经报道了几种方法。Denton等人的一种相当直接的方法是将奇异值分解（SVD）应用到一个经过预训练的CNN模型中。Han等人开发了网络剪枝，从一个预训练的模型开始，用0代替阈值以下的参数，形成稀疏矩阵，最后对稀疏CNN进行几次迭代训练。最近，Han等人通过将网络剪枝与量化（小于等于8比特）和哈夫曼编码相结合，扩展了它们的工作，以创建一种称为深度压缩的方法，并进一步设计了一种称为EIE的硬件加速器，该加速器直接在压缩模型上运行，实现了大幅加速和节能。
 
 ### 2.2 CNN微体系架构
 
@@ -79,66 +79,101 @@ tags:
 
 &emsp;*策略2.* **减少$3\times 3$滤波器的输入通道数.**&emsp;考虑一个完全由$3\times 3$滤波器组成的卷积层。该层的参数总数为(输入通道数)\*(滤波器数)\*(3\*3)。因此，为了在CNN中保持一个小的参数总数，不仅要减少$3\times 3$滤波器的数量（见上面的策略1），而且也要减少$3\times 3$滤波器的输入通道数。我们使用squeeze层减少$3\times 3$滤波器的输入通道数，这将在下一节中描述。
 
-&emsp;*策略3.* **在网络的后期下采样，这样卷积层就有了大的激活图.**&emsp;在卷积网络中，每个卷积层生成一个输出激活图，其空间分辨率至少为1x1，并且通常比1x1大得多。这些激活图的高度和宽度由以下因素控制：（1）输入数据的大小（如256x256大小的图像）和（2）在CNN架构中向下采样的层的选择。
+&emsp;*策略3.* **在网络的后期下采样，这样卷积层就有了大的激活图.**&emsp;在卷积网络中，每个卷积层生成一个输出激活图，其空间分辨率至少为$1\times 1$，并且通常比$1\times 1$大得多。这些激活图的高度和宽度由以下因素控制：（1）输入数据的大小（如$256\times 256$大小的图像）和（2）在CNN架构中进行下采样的层的选择。最常见的是，通过在一些卷积或池层中设置（stride>1），将下采样设计到CNN架构中。如果网络的早期层有很大的stride，那么大多数层都会有小的激活图。相反，如果网络中的大多数层的stride为1，且大于1的stride集中在网络的末端，那么网络中的许多层将具有较大的激活图。我们的直觉是，在其他条件相同的情况下，大的激活图（由于下采样的延迟）可以导致更高的分类精度。的确，K. He和H. Sun将延迟下采样应用于四种不同的CNN架构，在每种情况下，延迟下采样都会导致更高的分类精度。
+
+&emsp;策略1和策略2是在试图保持准确性的同时，明智地减少CNN中的参数数量。策略3是关于在有限的参数预算下最大化精度。接下来，我们描述Fire模块，它是我们CNN架构的构建模块，使我们能够成功地使用策略1、2和3。
+
+### 3.2 Fire模块
+
+&emsp;我们定义Fire模块如下。Fire模块包括：压缩（squeeze）卷积层（只有$1\times 1$滤波器），注入由$1\times 1$和$3\times 3$卷积滤波器组合而成的扩展（expand）层；我们在图1中对此进行了说明。在Fire模块中广泛使用$1\times 1$滤波器是3.1节中策略1的一个应用。我们在Fire模块中公开了三个可调维（超参数）：$s_{1\times 1}$、$e_{1\times 1}$和$e_{3\times 3}$。在Fire模块中，$s_{1\times 1}$是squeeze层中滤波器的数量（全部为$1\times 1$），$e_{1\times 1}$是expand层中$1\times 1$滤波器的数量，$e_{3\times 3}$是expand层中$3\times 3$滤波器的数量。当我们使用Fire模块时，我们将$s_{1\times 1}$设置为小于$(e_{1\times 1}+e_{3\times 3})$，因此squeeze层有助于限制$3\times 3$滤波器的输入通道数，如3.1节中的策略2所示。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-02-Xception--利用深度可分离卷积的深度学习/figure1.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-03-SqueezeNet/figure1.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">图1. 规范的Inception模块（Inception V3）</div>
+    padding: 2px;">图1. 微体系结构视图：Fire模块中卷积滤波器的组织。在本例中，$s_{1\times 1}=3$、$e_{1\times 1}=4$和$e_{3\times 3}=4$。我们展示了卷积滤波器而不是激活</div>
 </center>
 
-## 4. 实验
+### 3.3 SqueezeNet架构
 
-&emsp;
+&emsp;我们现在描述SqueezeNet CNN架构。我们在图2中演示了SqueezeNet，从一个独立的卷积层（conv1）开始，然后是8个Fire模块（fire2-9），最后是一个卷积层（conv10）。从网络的开始到结束，我们逐渐增加每个fire模块的滤波器数量。SqueezeNet在conv1、fire4、fire8和conv10层之后执行stride为2的最大池化；这些相对较迟的池化操作遵循3.1节中的策略3。我们在表1中给出了完整的SqueezeNet架构。
 
-### 4.1 JFT数据集
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-03-SqueezeNet/figure2.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图2. 我们的SqueezeNet架构的宏观视图。左：SqueezeNet（第3.3节）；中：带简单旁路的SqueezeNet（第6节）；右：带复杂旁路的SqueezeNet（第6节）。</div>
+</center>
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-03-SqueezeNet/table1.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表1. SqueezeNet架构</div>
+</center>
 
-&emsp;
+#### 3.3.1 SqueezeNet的其他细节
 
-### 4.2 优化配置
+&emsp;为了简洁起见，我们省略了表1和图2中关于SqueezeNet的许多细节和设计选择。我们在下面提供这些设计选择。这些选择背后的直觉可以在下面引用的论文中找到。
 
-&emsp;
+* 为了使从$1\times 1$和$3\times 3$滤波器的输出激活具有相同的高度和宽度，我们在expand模块的$3\times 3$滤波器的输入数据中添加一个填充0的1像素边框。
 
-&emsp;
+* ReLU用于squeeze和expand层的激活。
 
-&emsp;
+* 比例为50%的dropout用于fire9模块之后。
 
-## 4.4 训练基础设施
+* 注意SqueezeNet缺少全连接层；这个设计选择的灵感来自NiN架构。
 
-&emsp;
+* 当训练SqueezeNet时，我们从0.04的学习率开始，并在整个训练过程中线性降低学习率，如[Systematic evaluation of cnn advances on the imagenet]所述。有关训练方案的详细信息（例如批处理大小、学习率、参数初始化），请参考我们的与caffe兼容的配置文件：<https://github.com/DeepScale/SqueezeNet>。
 
-### 4.5 与Inception V3的比较
+* Caffe框架本身并不支持包含多个滤波器分辨率（如$1\times 1$和$3\times 3$）的卷积层。为了解决这个问题，我们使用两个独立的卷积层来实现expand层：一个带有$1\times 1$滤波器的层和一个带有$3\times 3$滤波器的层。然后，我们在通道维度中将这些层的输出连接在一起。这在数值上等价于实现一个包含$1\times 1$和$3\times 3$滤波器的层。
 
-#### 4.5.1 分类性能
+&emsp;我们以Caffe CNN框架定义的格式发布了SqueezeNet配置文件。然而，除了Caffe，出现了其他几个CNN框架，包括MXNet、Chainer、Keras和Torch。每一个都有自己的原生格式来表示CNN架构。也就是说，大多数这些库使用相同的底层计算后端，如cuDNN和MKL-DNN。为了与其他CNN软件框架兼容，研究团体已经移植了SqueezeNet CNN架构：
 
-&emsp;
+* SqueezeNet的MXNet移植：<https://github.com/hariag/SqueezeNet/commit/0cf57539375fd5429275af36fc94c774503427c3>
 
-&emsp;
+* SqueezeNet的Chainer移植：<https://github.com/ejlb/squeezenet-chainer>
 
-&emsp;
+* SqueezeNet的Keras移植：<https://github.com/DT42/squeezenet_demo>
 
-#### 4.5.2 大小和速度
+* SqueezeNet的Fire模块的Torch移植：<https://github.com/Element-Research/dpnn/blob/master/FireModule.lua>
 
-&emsp;
+## 4. 评估SqueezeNet
 
-### 4.6 残差连接的效果
+&emsp;现在我们将注意力转向评估SqueezeNet。在2.1节中回顾的每一篇CNN模型压缩论文中，目标都是压缩AlexNet模型，该模型使用ImageNet（ILSVRC 2012）数据集进行训练以对图像进行分类。因此，在评估SqueezeNet时，我们使用AlexNet和相关的模型压缩结果作为比较的基础。
 
-&emsp;
+&emsp;在表2中，我们根据最近的模型压缩结果回顾了SqueezeNet。基于SVD的方法能够将预训练的AlexNet模型压缩5倍，同时将top-1精度降低到56.0%。网络剪枝在保持ImageNettop-1精度为57.2%，top-5精度为80.3%的基础上，模型尺寸减少了9倍。深度压缩在保持baseline精度水平的同时，模型尺寸减少了35倍。现在，有了SqueezeNet，我们的模型尺寸比AlexNet缩小了50倍，同时达到或超过了AlexNet的top-1和top-5的精度。我们在表2中总结了上述所有结果。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-03-SqueezeNet/table2.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表2. 比较SqueezeNet和模型压缩方法。model size指的是在训练模型中存储所有参数所需的字节数。</div>
+</center>
 
-### 4.7 逐点卷积后的一个中间激活的效果
+&emsp;我们似乎已经超越了模型压缩的最先进成果：即使使用未压缩的32比特值来表示模型，SqueezeNet的模型大小也比模型压缩的最好效果要小1.4倍，同时保持或超过baseline精度。到目前为止，一个悬而未决的问题是：小模型是否适合压缩，或者小模型是否“需要”密集浮点值提供的所有表示能力？为了找出答案，我们使用33%的稀疏性和8比特量化对SqueezeNet进行深度压缩。这产生了一个0.66MB的模型（比32比特AlexNet小363倍），其精度与AlexNet相当。此外，在SqueezeNet上应用6比特量化的深度压缩和33%的稀疏性，我们得到了一个0.47MB（510倍小于32比特AlexNet）的模型，具有相同的精度。**我们的小模型确实经得起压缩。**
 
-&emsp;
+&emsp;此外，这些结果表明，深度压缩不仅适用于具有许多参数的CNN架构（如AlexNet和VGG），而且能够压缩已经紧凑的、完全卷积的SqueezeNet架构。经过深度压缩压缩后的SqueezeNet在保持baseline精度的同时压缩了10倍。总之：通过将CNN架构创新（SqueezeNet）与最先进的压缩技术（深度压缩）相结合，我们实现了模型尺寸的510倍缩减，与baseline相比，精确度没有降低。
 
-## 5. 未来方向
+&emsp;最后，请注意深度压缩使用codebook作为其将CNN参数量化到6比特或8比特精度的方案的一部分。因此，在大多数商用处理器上，使用在深度压缩中开发的方案实现$\frac{32}{8}=4$倍（8比特量化）或$\frac{32}{6}=5.3$倍（6比特量化）的加速并非易事。然而，Han等人开发了定制的硬件——高效推理引擎（EIE）——可以更有效地计算codebook-量化的CNNs。此外，在我们发布SqueezeNet后的几个月里，P. Gysel开发了一个名为Ristretto的策略，用于将SqueezeNet线性量化到8比特。具体来说，Ristretto用8比特进行计算，并以8比特数据类型存储参数和激活。在SqueezeNet推理中使用Ristretto策略进行8比特计算时，Gysel发现当使用8比特而不是32比特数据类型时，精度下降了不到1%。
+
+## 5. CNN微架构设计空间探索
 
 &emsp;
 
