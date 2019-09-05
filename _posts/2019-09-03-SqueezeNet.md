@@ -175,14 +175,92 @@ tags:
 
 ## 5. CNN微架构设计空间探索
 
-&emsp;
+&emsp;到目前为止，我们已经提出了小模型的架构设计策略，并按照这些原则创建了SqueezeNet，发现SqueezeNet比AlexNet小50倍，且精度相当。然而，SqueezeNet等模型存在于CNN架构的一个广泛而未被探索的设计空间中。现在，在第5和第6节中，我们将探讨设计空间的几个方面。我们将架构探索分为两个主要主题：微架构探索（每个模块的层维度和配置）和宏架构探索（模块和其他层的高层端到端组织）。
 
-## 6. 结论
+&emsp;在本节中，我们设计和执行实验的目的是根据我们在3.1节中提出的设计策略，对微架构设计空间的形状提供直观的认识。请注意，我们这里的目标不是在每个实验中都最大化精确度，而是理解CNN架构选择对模型大小和精确度的影响。
 
-&emsp;
+### 5.1 CNN微架构元参数
+
+&emsp;在SqueezeNet中，每个Fire模块都有我们在3.2节中定义的三维超参数$s_{1\times 1}$、$e_{1\times 1}$和$e_{3\times 3}$。SqueezeNet有8个Fire模块，共24维超参数。为了对类SqueezeNet结构的设计空间进行广泛的扫描，我们定义了一组更高级别的元参数，它控制CNN中所有Fire模块的尺寸。我们将$base_{e}$定义为CNN中第一个Fire模块中expand滤波器的数量。在每$freq$个Fire模块之后，我们将expand滤波器的数量增加$incr_{e}$。换句话说，对于Fire模块i，expand滤波器的数量是$e_{i}=base_{e}+(incr_{e}*\lfloor \frac{i}{freq}\rfloor)$。在一个Fire模块的第$freq$个expand层中，有的滤波器为$1\times 1$，有的滤波器为$3\times 3$；我们定义$e_{i}=e_{i,1\times 1}+e_{i, 3\times 3}$和$pct_{3\times 3}$（在[0, 1]范围内，在所有Fire模块上共享）为$3\times 3$的expand滤波器的百分比。也就是说，$e_{i, 3\times 3}=e_{i}*pct_{3\times 3}$，$e_{i, 1\times 1}=e_{i}*(1-pct_{3\times 3})$。最后，我们使用一个称为压缩（squeeze）比（SR）的元参数定义Fire模块squeeze层中的滤波器数量（同样在[0, 1]范围内，为所有Fire模块共享）：$s_{i,1\times 1}=SR*e_{i}$（或等效为$s_{i,1\times 1}=SR*(e_{i,1\times 1}+e_{i, 3\times 3})$）。SqueezeNet（表1）是我们使用前面提到的一组元参数生成的一个示例架构。具体来说，SqueezeNet有以下元参数：$base_{e}=128$、$incr_{e}=128$、$pct_{3\times 3}=0.5$、$freq=5$和$SR=0.125$。
+
+### 5.2 压缩（squeeze）比
+
+&emsp;在3.1节中，我们提出通过使用squeeze层来减少$3\times 3$滤波器看到的输入通道数量，从而减少参数的数量。我们将压缩比（SR）定义为squeeze层中滤波器的数量与expand层中滤波器的数量之比。我们现在设计了一个实验来研究压缩比对模型尺寸和精度的影响。
+
+&emsp;在这些实验中，我们使用SqueezeNet（图2）作为出发点。与SqueezeNet一样，这些实验使用了以下元参数：$base_{e}=128$、$incr_{e}=128$、$pct_{3\times 3}=0.5$和$freq=5$。 我们训练多个模型，其中每个模型具有不同的压缩比（SR），范围在[0.125, 1.0]。在图3（a）中，我们展示了这个实验的结果，图中的每个点都是从零开始训练的独立模型。图中SqueezeNet为$SR=0.125$的点。从图中可以看出，将SR提高到0.125以上，可以进一步提高ImageNet上的top-5准确率，从4.8MB模型的80.3%（即AlexNet级别）提高到19MB模型的86.0%。精度稳定在86.0%且$SR=0.75$（19MB模型），设置$SR=1.0$在不提高精度的情况下进一步增加了模型大小。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-03-SqueezeNet/figure3.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图3. 微体系架构设计空间探索</div>
+</center>
+
+### 5.3 权衡$1\times 1$和$3\times 3$滤波器
+
+&emsp;在3.1节中，我们提出了用$1\times 1$滤波器代替$3\times 3$滤波器来减少CNN中参数的数量。一个悬而未决的问题是，CNN滤波器的空间分辨率有多重要？
+
+&emsp;VGG架构在大多数层的滤波器中都具有$3\times 3$的空间分辨率；GoogLeNet和Network-in-Network（NiN）在某些层中有$1\times 1$滤波器。在GoogLeNet和NiN中，作者只是提出了一个特定数量的$1\times 1$和$3\times 3$过滤器，而没有进一步分析。在这里，我们试图阐明$1\times 1$和$3\times 3$滤波器的比例如何影响模型的大小和精度。
+
+&emsp;在本实验中，我们使用了以下元参数：$base_{e}=incr_{e}=128$、$freq=2$、$SR=0.500$，$pct_{3\times 3}$的变化范围从1%到99%。换句话说，每个Fire模块的expand层都有一个预定义的滤波器数量，这些滤波器划分为$1\times 1$和$3\times 3$，这里我们将这些滤波器的旋钮从“大部分$1\times 1$”切换到“大部分$3\times 3$”。与之前的实验一样，这些模型有8个Fire模块，遵循图2中相同的层组织。实验结果如图3(b)所示。注意，图3（a）和图3（b）中的13MB模型是相同的体系结构：$SR=0.500$和$pct_{3\times 3}=50\%$。从图3（b）中可以看出，使用50%的$3\times 3$滤波器，top-5准确率为85.6%，进一步增加$3\times 3$滤波器的比例，导致模型尺寸更大，但在ImageNet上没有提高精度。
+
+## 6. CNN宏架构设计空间探索
+
+&emsp;到目前为止，我们已经探索了微架构层面的设计空间，即CNN各个模块的内容。现在，我们将探讨与Fire模块之间的高层连接有关的宏架构级别的设计决策。受ResNet的启发，我们探索了三种不同的架构：
+
+* 普通的SqueezeNet（根据前面的章节）
+
+* 在一些Fire模块之间采用简单的旁路连接的SqueezeNet
+
+* 其余Fire模块之间具有复杂旁路连接的SqueezeNet
+
+&emsp;我们在图2中演示了这三种类型的SqueezeNet。
+
+&emsp;我们的简单旁路架构围绕Fire模块3、5、7和9添加旁路连接，要求这些模块学习输入和输出之间的残差函数。正如在ResNet中的一样，为了实现围绕Fire3的旁路连接，我们将Fire4的输入设置为等于（Fire2的输出+ Fire3的输出），其中+操作符是element-wise加法。这改变了这些Fire模块参数的正则化，并且，根据ResNet，可以提高最终的精度和/或训练整个模型的能力。
+
+&emsp;一个限制是，在简单的情况下，输入通道的数量和输出通道的数量必须相同；因此，只有一半的Fire模块可以实现简单的旁路连接，如图2的中间图所示。当不能满足“相同数量的通道”需求时，我们使用一个复杂的旁路连接，如图2右边图所示。虽然简单旁路“只是一根线”，但我们将复杂旁路定义为包括$1\times 1$卷积层的旁路，其中滤波器数量设置为所需的输出通道数量。注意，复杂的旁路连接会向模型添加额外的参数，而简单的旁路连接则不会。
+
+&emsp;除了改变正则化之外，我们还可以直观地看到，添加旁路连接将有助于缓解squeeze层引入的表征瓶颈。在SqueezeNet中，压缩比（SR）为0.125，这意味着每一个squeeze层的输出通道比相应的expand层少8倍。由于这种严重的维数减少，有限的信息可以通过squeeze层。然而，通过向SqueezeNet添加旁路连接，我们为信息在挤压层周围流动开辟了道路。
+
+&lt;我们使用图2中的三种宏架构对SqueezeNet进行了训练，并在表3中对精度和模型大小进行了比较。在整个宏体系架构探索过程中，我们按照表1中描述的那样，固定了与SqueezeNet匹配的微体系架构。复杂的旁路连接和简单的旁路连接都比传统的SqueezeNet结构获得了精度上的提高。有趣的是，简单旁路比复杂旁路具有更高的准确度。在不增加模型尺寸的情况下，添加简单的旁路连接在top-1精度上增加了2.9%，在top-5精度上增加了2.2%。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-03-SqueezeNet/table3.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表3. 使用不同宏架构配置的SqueezeNet精度和模型大小</div>
+</center>
+
+## 7. 结论
+
+&emsp;在这篇论文中，我们提出了一个更有规律的方法来探索卷积神经网络的设计空间。为了实现这一目标，我们提出了SqueezeNet，这是一种CNN架构，它的参数比AlexNet少50倍，并且在ImageNet上保持了AlexNet级别的精度。我们还将SqueezeNet压缩到小于0.5MB，或者在不压缩的情况下比AlexNet小510倍。自2016年我们以技术报告的形式发表这篇论文以来，韩松和他的合作者们对SqueezeNet和模型压缩进行了进一步的实验。使用一种称为Dense-Sparse-Dense（DSD）的新方法，han等人在训练期间使用模型压缩作为正则化器来进一步提高精度，生成压缩后的SqueezeNet参数集，在ImageNet-1k上其精度提高1.2个百分点，并且生成未压缩的SqueezeNet参数集，其精度提高4.3个百分点（与表2中的结果相比）。
+
+&emsp;我们在本文的开头提到，小模型更适合于FPGA上的片上实现。自我们发布了SqueezeNet模型以来，Gschwend开发了一个SqueezeNet的变体，并在FPGA上实现了它。正如我们所预料的，Gschwend能够将一个类SqueezeNet模型的参数完全存储在FPGA中，并且消除了对加载模型参数的片外内存访问的需要。
+
+&emsp;在本文中，我们将ImageNet作为目标数据集。然而，将经过ImageNet训练的CNN表示应用于细粒度对象识别、图像中的标识识别、生成关于图像的句子等多种应用已成为一种常见的实践。ImageNet训练过的CNNs也被应用于一些与自动驾驶相关的应用，包括图像和视频中的行人和车辆检测，以及对道路形状的分割。我们认为SqueezeNet将成为适用于各种应用的良好候选CNN架构，尤其是那些小模型尺寸非常重要的应用。
+
+&emsp;SqueezeNet是我们在广泛探索CNN架构设计空间的过程中发现的几个新的CNNs之一。我们希望SqueezeNet能够启发读者去思考和探索CNN架构设计空间的广阔可能性，并以一种更加系统的方式进行探索。
 
 ---
 
 ## 个人看法
 
-&emsp;这篇文章是Google对其之前的Inception系列所做的改进，通过解耦通道间的相关性与空间相关性，实现网络参数量的降低，这其实也是深度可分离卷积的根本思想所在，只不过Xception所采用的的深度卷积和逐点卷积的顺序以及采用激活函数的策略有所不同。
+&emsp;这篇文章相对而言较老了，其主要思想是较简单地通过大量的$1\times 1$卷积代替$3\times 3$卷积、同时减少$3\times 3$卷积对应的输入通道数达到减少参数量的目的，对应的核心就是Fire模块，模块中的squeeze层主要控制通道数，expand层则是大量利用$1\times 1$卷积代替$3\times 3$卷积。
+
+&emsp;再参考这篇博客--[2.1 SqueezeNet V1思考](https://www.jianshu.com/p/6153cc19d6b7)，提到了SqueezeNet的几个缺点：
+
+* SqueezeNet的侧重的应用方向是嵌入式环境，目前嵌入式环境主要问题是实时性。SqueezeNet通过更深的深度置换更少的参数量，虽然能网络的参数量少了，但是其丧失了网络的并行能力，测试时间反而会更长，这与目前的主要挑战是背道而驰的。
+
+* 纸面上是减少了50倍的参数，但是问题的主要症结在于AlexNet本身全连接节点过于庞大（SqueezeNet中用全局平均池化代替），50倍参数的减少和SqueezeNet的设计并没有过大的关系，考虑去掉全连接之后3倍参数量的减少更为合适。
+
+* SqueezeNet得到的模型是5MB左右，0.5MB的模型还要得益于Deep Compression。虽然Deep Compression也是这个团队的文章，但是将0.5MB这个模型大小列在文章的题目中显然不是很合适。
+
+&emsp;而且文章的对比对象是AlexNet，在现在看来显然有点过时了。。。
