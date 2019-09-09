@@ -67,19 +67,42 @@ tags:
 
 ## 3. MixConv
 
-&emsp;
+&emsp;MixConv的主要思想是在一个深度卷积操作中混合多个不同大小的卷积核，这样就可以很容易地从输入图像中捕获不同类型的模式。在本节中，我们将讨论MixConv的特征图和设计选择。
 
-### 3.1 架构
+### 3.1 MixConv Feature Map
 
-&emsp;
+&emsp;我们从普通的深度卷积开始。设$X^{(h,w,c)}$为形状为$(h,w,c)$的输入张量，其中$h$为空间高度，$W^{(k,k,c,m)}$为空间宽度，$c$为通道大小。设$W$为深度卷积核，其中$k\times k$为核大小，$c$为输入通道大小，$m$为通道乘数。为了简单起见，这里我们假设核宽度和高度是相同的$k$，但是很容易将其推广到核宽度和高度不同的情况。输出张量$Y^{(h,w,c\cdot m)}$将具有相同的空间形状$(h,w)$和成倍的输出通道大小$m\cdot c$，每个输出特征图的值计算如下：
 
-&emsp;
+$$
+Y_{x,y,z}=\sum_{-\frac{k}{2}\le i\le\frac{k}{2},-\frac{k}{2}\le j\le\frac{k}{2}}X_{x+i,y+j,z/m}\cdot W_{i,j,z},\qquad\forall z=1,\ldots,m\cdot c
+$$
 
-&emsp;
+&emsp;与普通的深度卷积不同，MixConv将通道划分为组，并为每个组提供不同的核大小，如图2所示。更具体地说，输入张量划分为g组的虚拟张量$<\hat{X}^{(h,w,c_{1})},\ldots,\hat{X}^{(h,w,c_{g})}>$，所有虚拟张量$\hat{X}$具有相同的空间高度$h$和宽度$w$，并且他们的总通道大小与原始输入张量的相等：$c_{1}+c_{2}+\ldots+c_{g}=c$。同样的，我们也将卷积核分成g组虚拟核：$<\hat{W}^{(k_{1},k_{1},c_{1},m)},\ldots,\hat{W}^{(k_{g},k_{g},c_{g},m)}>$。对于第t组虚拟输入张量和核，相应的虚拟输出计算如下：
 
-&emsp;
+$$
+\hat{Y}^{t}_{x,y,z}=\sum_{-\frac{k_{t}}{2}\le i\le\frac{k_{t}}{2},-\frac{k_{t}}{2}\le j\le\frac{k_{t}}{2}}\hat{X}^{t}_{x+i,y+j,z/m}\cdot \hat{W}^{t}_{i,j,z},\qquad\forall z=1,\ldots,m\cdot c_{t}
+$$
 
-&emsp;
+&emsp;最终输出张量是所有虚拟输出张量$<\hat{Y}^{1}_{x,y,z_{1}},\ldots,\hat{Y}^{g}_{x,y,z_{g}}>$的串联（concatenation）：
+
+$$
+Y_{x,y,z_{o}}=Concat(\hat{Y}^{1}_{x,y,z_{1}},\ldots,\hat{Y}^{g}_{x,y,z_{g}})
+$$
+
+&emsp;其中$z_{o}=z_{1}+\ldots+z_{g}=m\cdot c$是最终的输出通道大小。
+
+&emsp;图3是一个python实现的基于Tensorflow的MDConv简单样例。在某些平台上，MixConv可以作为一个单独的操作实现，并使用分组卷积进行优化。尽管如此，如图所示，MixConv可以被认为是一种简单的取代普通深度卷积的方法。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-06-MixConv--Mixed Depthwise Convolutional Kernels/figure3.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图3. Tensorflow 实现的MDConv样例</div>
+</center>
 
 ### 3.2 模块
 
