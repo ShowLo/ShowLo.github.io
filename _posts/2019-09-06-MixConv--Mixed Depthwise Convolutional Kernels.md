@@ -101,20 +101,50 @@ $$
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">图3. Tensorflow 实现的MDConv样例</div>
+    padding: 2px;">图3. Tensorflow实现的MDConv样例</div>
 </center>
 
-### 3.2 模块
+### 3.2 MixConv的设计选择
 
-&emsp;
+&emsp;MixConv是一个灵活的卷积运算，有几个设计选项：
 
-### 3.3 架构
+**组大小g：** 它决定一个输入张量使用多少种不同类型的卷积核。在$g=1$的极端情况下，MixConv等价于普通的深度卷积。在我们的实验中，我们发现$g=4$通常是MobileNets的一个安全选择，但在神经架构搜索的帮助下，我们发现从1到5的各种组大小可以进一步提高模型的效率和准确性。
 
-&emsp;
+**每个组的核大小：** 理论上，每个组可以有任意的核大小。但是，如果两个组具有相同的内核大小，那么就相当于将这两个组合并成一个组，因此我们限制每个组具有不同的核大小。此外，由于小的卷积核大小通常具有更少的参数和FLOPs，我们限制核大小总是从$3\times 3$开始，并且每组单调地增加2。换句话说，组$i$的核大小总是$2i+1$。例如，4组MixConv总是使用内核大小$\{3\times 3,5\times 5,7\times 7,9\times 9\}$。有了这个限制，每个组的核大小都是为任何组大小g所预定义的，从而简化了我们的设计过程。
 
-#### 3.3.1 细节
+**每组的通道大小：** 本文主要考虑两个通道划分方法：（1）相等划分：每组将有相同数量的滤波器；（2）指数划分：第i组约占总信道的$2^{-i}$部分。例如，给定一个总滤波器数量为32的4组MixConv，相等划分将通道划分为$(8,8,8,8)$，而指数划分将通道划分为$(16,8,4,4)$。
 
-&emsp;
+**空洞卷积：** 由于大的卷积核需要更多的参数和计算，另一种选择是使用空洞卷积，它可以增加感受野，而不需要额外的参数和计算。然而，正如我们在3.4节的消融研究中所示，空洞卷积通常比使用大尺寸卷积核时的精度低。
+
+### 3.3 MixConv在MobileNets上的性能
+
+&emsp;由于MixConv是普通深度卷积的简单替代，我们使用现有的MobileNets评估其在分类和检测任务上的性能。
+
+**ImageNet分类性能：** 图4显示了MixConv在ImageNet分类上的性能。基于MobileNet V1和V2，我们用更大的或MixConv核替换了所有原来的$3\times 3$深度卷积核。值得注意的是，MixConv总是从$3\times 3$核大小开始，然后每组单调地增加2，因此图中MixConv最右边的点有6组核大小为$\{3\times 3,5\times 5,7\times 7,9\times 9,11\times 11,13\times13\}$的滤波器。在图中，我们观察到：（1）MixConv通常使用较少的参数和FLOPs，但其精度与普通的深度卷积相近或更好，说明混合不同的卷积核可以提高效率和精度；（2）与普通的深度卷积相比，深度卷积的精度会因为更大的核而降低，如图1所示，MixConv对非常大的核的敏感度要低得多，这表明不同的核混合在一起，对于较大的核尺寸，可以获得更稳定的精度。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-06-MixConv--Mixed Depthwise Convolutional Kernels/figure4.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图4. MixConv在ImageNet上的性能——每个点表示核大小从$3\times 3$到$13\times 13$的模型，与图1相同。 MixConv比普通的深度卷积更小、更快，并且达到更高的精度。</div>
+</center>
+
+**COCO检测性能：** 我们还评估了MixConv基于MobileNets的COCO目标检测。表1显示了性能比较，其中我们的MixConv始终比普通的深度卷积获得更好的效率和准确性。特别是，与普通的depthwise$7\times 7$相比，我们的MixConv357（具有3组内核$\{3\times 3,5\times 5,7\times 7\}$）使用更少的参数和FLOPs在MobileNetV1上实现了0.6％更高的mAP，在MobileNetV2上实现了1.1％更高的mAP。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-06-MixConv--Mixed Depthwise Convolutional Kernels/table1.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表1. COCO目标检测性能比较</div>
+</center>
 
 &emsp;
 
