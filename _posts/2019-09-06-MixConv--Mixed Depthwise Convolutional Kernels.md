@@ -112,7 +112,7 @@ $$
 
 **每个组的核大小：** 理论上，每个组可以有任意的核大小。但是，如果两个组具有相同的内核大小，那么就相当于将这两个组合并成一个组，因此我们限制每个组具有不同的核大小。此外，由于小的卷积核大小通常具有更少的参数和FLOPs，我们限制核大小总是从$3\times 3$开始，并且每组单调地增加2。换句话说，组$i$的核大小总是$2i+1$。例如，4组MixConv总是使用内核大小$\{3\times 3,5\times 5,7\times 7,9\times 9\}$。有了这个限制，每个组的核大小都是为任何组大小g所预定义的，从而简化了我们的设计过程。
 
-**每组的通道大小：** 本文主要考虑两个通道划分方法：（1）相等划分：每组将有相同数量的滤波器；（2）指数划分：第i组约占总信道的$2^{-i}$部分。例如，给定一个总滤波器数量为32的4组MixConv，相等划分将通道划分为$(8,8,8,8)$，而指数划分将通道划分为$(16,8,4,4)$。
+**每组的通道大小：** 本文主要考虑两个通道划分方法：（1）均等划分：每组将有相同数量的滤波器；（2）指数划分：第i组约占总信道的$2^{-i}$部分。例如，给定一个总滤波器数量为32的4组MixConv，均等划分将通道划分为$(8,8,8,8)$，而指数划分将通道划分为$(16,8,4,4)$。
 
 **空洞卷积：** 由于大的卷积核需要更多的参数和计算，另一种选择是使用空洞卷积，它可以增加感受野，而不需要额外的参数和计算。然而，正如我们在3.4节的消融研究中所示，空洞卷积通常比使用大尺寸卷积核时的精度低。
 
@@ -133,7 +133,7 @@ $$
     padding: 2px;">图4. MixConv在ImageNet上的性能——每个点表示核大小从$3\times 3$到$13\times 13$的模型，与图1相同。 MixConv比普通的深度卷积更小、更快，并且达到更高的精度。</div>
 </center>
 
-**COCO检测性能：** 我们还评估了MixConv基于MobileNets的COCO目标检测。表1显示了性能比较，其中我们的MixConv始终比普通的深度卷积获得更好的效率和准确性。特别是，与普通的depthwise$7\times 7$相比，我们的MixConv357（具有3组内核$\{3\times 3,5\times 5,7\times 7\}$）使用更少的参数和FLOPs在MobileNetV1上实现了0.6％更高的mAP，在MobileNetV2上实现了1.1％更高的mAP。
+**COCO检测性能：** 我们还评估了MixConv基于MobileNets的COCO目标检测。表1显示了性能比较，其中我们的MixConv始终比普通的深度卷积获得更好的效率和准确性。特别是，与普通的$depthwise7\times 7$相比，我们的MixConv357（具有3组内核$\{3\times 3,5\times 5,7\times 7\}$）使用更少的参数和FLOPs在MobileNetV1上实现了0.6％更高的mAP，在MobileNetV2上实现了1.1％更高的mAP。
 
 <center>
     <img style="border-radius: 0.3125em;
@@ -146,56 +146,135 @@ $$
     padding: 2px;">表1. COCO目标检测性能比较</div>
 </center>
 
-&emsp;
+### 3.4 消融实验
 
-## 4. 评估
+&emsp;为了更好地理解MixConv，我们提供了一些消融研究：
 
-&emsp;
+**用于单层的MixConv：** 除了将MixConv应用于整个网络之外，图5还显示了MobileNetV2上的单层性能。我们用（1）普通的核大小为$9\times 9$的$DepthwiseConv9\times 9$，或（2）含有4组核：$\{3\times 3,5\times 5,7\times 7,9\times 9\}$的MixConv3579替换这15层中的一层。如图所示，较大的核大小对不同的层有不同的影响：对于大多数层，精度变化不大，但是对于某些具有stride为2的层，较大的核可以显著提高精度。值得注意的是，尽管MixConv3579只使用了普通的$DepthwiseConv9\times 9$一半的参数和FLOPs，但是我们的MixConv在大多数层上都实现了类似的或者稍微好一点的性能。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-06-MixConv--Mixed Depthwise Convolutional Kernels/figure5.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图5. 核大小对每层的影响——s2表示stride为2，而其他的则是stride为1。</div>
+</center>
 
-&emsp;
+**通道划分方法：** 图6比较了两种通道划分方法：均等划分（MixConv）和指数划分（MixConv+exp）。正如预期的那样，对于相同的核大小，指数划分需要更少的参数和FLOPs，方法是将更多的通道分配给更小的核。我们的实证研究表明，指数通道划分在MobileNetV1上的性能仅略好于均等划分，但如果同时考虑MobileNetV1和V2，则没有明显的赢家。指数划分的一个可能限制是，大卷积核没有足够的通道来捕获高分辨率模式。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-06-MixConv--Mixed Depthwise Convolutional Kernels/figure6.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图6. 指数划分（+exp）和空洞卷积核（+dilated）的性能</div>
+</center>
 
-&emsp;
+**空洞卷积：** 图6还比较了膨胀卷积的性能（表示为MixConv+dilated）。对于$K\times K$的核大小，它使用一个具有$(K-1)/2$空洞率的$3\times 3$核：例如，一个$9\times 9$内核将被一个具有空洞率为4的$3\times 3$核所取代。值得注意的是，由于Tensorflow空洞卷积与stride为2不兼容，所以我们只在stride为1的层上使用空洞卷积。如图所示，空洞卷积对于小核具有合理的性能，但是对于大核精度下降很快。我们的假设是，当大核的空洞率很大时，空洞卷积会跳过很多局部信息，这会影响精度。
 
-## 5
+## 4. MixNet
 
-&emsp;
+&emsp;为了进一步证明MixConv的有效性，我们利用神经结构搜索的最新进展，开发了一个新的基于MixConv的模型家族，称为MixNets。
 
-&emsp;
+### 4.1 架构搜索
 
-### 5.1
+&emsp;我们的神经架构搜索设置类似于最近的MnasNet、FBNet和ProxylessNAS，使用MobileNetV2作为基线网络结构，搜索最佳核大小、扩展比、通道大小等设计选择。然而，与之前使用普通深度卷积作为基本卷积运算的工作不同，我们采用我们提出的MixConv作为搜索选项。具体来说，我们有5个MixConv候选组$g=1,\ldots,5$：
 
-&emsp;
+* **$3\times 3$**：带有一组过滤器的MixConv（$g=1$），核大小为$3\times 3$。
+* $\ldots$
+* **$3\times 3,5\times 5,7\times 7,9\times 9,11\times 11$：** MixConv有5组过滤器（$g=5$），核大小为$\{3\times 3,5\times 5,7\times 7,9\times 9,11\times 11\}$。 每个组的通道数量大致相同。
 
-### 5.2
+&emsp;为了简化搜索过程，我们没有在搜索空间中包含指数通道划分或空洞卷积，但是在将来的工作中集成它们是很简单的。
 
-&emsp;
+&emsp;与最近的神经结构搜索方法类似，我们直接在ImageNet训练集上搜索，然后从搜索中选择一些表现最佳的模型，以验证它们在ImageNet验证集和迁移学习数据集上的准确性。
 
-&emsp;
+### 4.2 MixNet在ImageNet上的表现
 
-### 5.3
+&emsp;表2显示了MixNets的ImageNet性能。这里我们通过神经结构搜索得到了MixNet-S和M，并利用深度乘数1.3对MixNet-M进行了扩展，得到了MixNet-L。所有模型都使用与MnasNet相同的设置进行训练。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-06-MixConv--Mixed Depthwise Convolutional Kernels/table2.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表2. MixNet在ImageNet 2012上的性能结果</div>
+</center>
 
-&emsp;
+&emsp;总体而言，我们的MixNets优于所有最新的移动卷积神经网络：与手工设计的模型相比，在相同的FLOPs约束下，我们的MixNets的top-1精度比MobileNetV2提高了4.2%，比ShuffleNetV2提高了3.5%；与最新的自动化模型相比，在相似的FLOPs约束下，我们的MixNet比MnasNet（+1.3%）、FBNets（+2.0%）和ProxylessNAS（+2.2%）的准确率更高。MixNets还实现了与最新的MobileNetV3类似的性能（使用更少的参数），后者是与我们的工作同时开发的，除了架构搜索之外，还进行了几个手工优化。特别值得一提的是，我们的MixNet-L在典型的移动FLOPs（<600M）约束下，实现了78.9%的最先进的top-1精度。与广泛使用的ResNets相比，我们的MixNet-M实现了与ResNet-152相同的77％的top-1精度，但参数减少了12倍，FLOPs减少了31倍。
 
-&emsp;
+&emsp;图7可视化了ImageNet性能比较。我们观察到，与以前手工设计的移动卷积神经网络相比，神经架构搜索的最新进展显著提高了模型性能。然而，通过引入一种新型的高效MixConv，我们可以基于相同的神经结构搜索技术进一步提高模型的准确性和效率。
 
-## 6. 结论
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-06-MixConv--Mixed Depthwise Convolutional Kernels/figure7.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图7. ImageNet性能比较</div>
+</center>
 
-&emsp;
+### 4.3 MixNet架构
 
-&emsp;
+&emsp;为了理解为什么我们的MixNet能够达到更好的精度和效率，图8说明了表2中MixNet-S和MixNet-M的网络架构。通常，它们都在整个网络中使用各种不同核大小的MixConv：为了节省计算成本，小的卷积核在早期更为常见，而大的卷积核在后期更为常见，以获得更好的准确性。我们还观察到，较大的MixNet-M倾向于使用更大的核和更多的层来追求更高的精度，而代价是更多的参数和FLOPs。与对于较大的核大小会导致严重的精度下降（图1）普通的深度卷积不同，我们的MixNets能够使用非常大的核，比如$9\times 9$和$11\times 11$，从输入图像中捕捉高分辨率的模式，而不会影响模型的精度和效率。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-06-MixConv--Mixed Depthwise Convolutional Kernels/figure8.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图8. MixNet体系结构——MixNet-S和MixNet-M来自表2。我们主要强调MixConv核大小（例如$\{3\times 3,5\times 5\}$）和输入/输出张量形状。</div>
+</center>
 
-&emsp;
+### 4.4 迁移学习性能
+
+&emsp;我们还对四种广泛使用的迁移学习数据集进行了评估，包括CIFAR-10/100、Oxford-IIIT Pets和Food-101。表3显示了它们的训练集大小、测试集大小和类数的统计信息。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-06-MixConv--Mixed Depthwise Convolutional Kernels/table3.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表3. 迁移学习数据集</div>
+</center>
+
+&emsp;图9将MixNet-S/M与一列以前的模型对迁移学习精度和FLOPs进行了比较。对于每个模型，我们首先在ImageNet上从零开始训练它，然后使用类似于[Do better imagenet models transfer
+better?]的设置在目标数据集上对所有权重进行微调。MobileNets、Inception、ResNet、DenseNet的精度和FLOPs数据均来自[Do better imagenet models transfer
+better?]。总的来说，我们的MixNet在所有这些数据集上都明显优于以前的模型，特别是在使用最广泛的CIFAR-10和CIFAR-100上，这表明我们的MixNet也可以很好地推广到迁移学习。特别地，我们的MixNet-M以3.49M的参数和352M的FLOPS实现了97.92%的精度，比ResNet-50提高了1%的精度，效率提高了11.4倍。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-06-MixConv--Mixed Depthwise Convolutional Kernels/figure9.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图9. 迁移学习性能--MixNet-S/M见表2</div>
+</center>
+
+## 5. 结论
+
+&emsp;在本文中，我们重新讨论了卷积核大小对深度卷积的影响，并指出传统的深度卷积存在单一卷积核大小的限制。为了解决这个问题，我们提出了MixConv，它将多个卷积核混合在一个操作中，以利用不同的核大小。我们证明了我们的MixConv是普通的深度卷积的一个简单的直接替代，并提高了MobileNets在图像分类和目标检测任务上的准确性和效率。基于我们提出的MixConv，我们进一步利用神经结构搜索技术开发了一个新的MixNet家族。实验结果表明，我们的MixNet在ImageNet分类和四种广泛使用的迁移学习数据集上都比所有最新的移动卷积神经网络具有更好的精度和效率。
 
 ---
 
 ## 个人看法
 
-&emsp;
+&emsp;这篇文章最重要的创新点在于多种尺寸的卷积核的混用，也就是提出的MixConv操作，不过这种混合多种卷积核的操作我在SqueezeNet里面也有见过，不同的是SqueezeNet里面是为了降低参数量而用$1\times 1$卷积核替代了部分$3\times 3$卷积核，MixConv的结构或许可以看做是一种拓展吧。最近NAS搜出来的结构越来越多用到了$5\times 5$以上的大卷积核，或许也是一种提高精度的趋势吧，对于手工设计来说决定各个层用什么尺寸的卷积核可能还是略显复杂了点。。。
