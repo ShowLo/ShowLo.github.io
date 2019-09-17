@@ -74,11 +74,11 @@ item {
 * batch_size根据电脑/服务器配置，可以适当调高或者调低
 * 两个input_path分别设置成`data/train.tfrecord`和`data/test.tfrecord`
 * 两个label_map_path均设置成`data/my_label_map.pbtxt`
-* 第158、159行的
+* 从头训练的话，第158、159行的
 
 ```
-    fine_tune_checkpoint: "ssd_mobilenet_v1_coco_11_06_2017/model.ckpt"   
-    from_detection_checkpoint: true
+    fine_tune_checkpoint: "PATH_TO_BE_CONFIGURED/model.ckpt"
+    fine_tune_checkpoint_type:  "detection"
 ```
 
 &emsp;&emsp;这2行需要删除或注释掉
