@@ -13,7 +13,7 @@ tags:
     - CNN
 ---
 
-# ShuffleNet
+# ShuffleNet V2
 
 &emsp;前一篇文章介绍了ShuffleNet，然后Face++在2018年又发布了其升级版--ShuffleNet V2，文章也发表在了ECCV 2018上，原文可见[ShuffleNet V2: Practical Guidelines for Efficient CNN Architecture Design](https://arxiv.org/abs/1807.11164)。
 
@@ -114,7 +114,7 @@ $$
 MAC=hw(c_{1}+c_{2})+\frac{c_{1}c_{2}}{g}=hwc_{1}+\frac{Bg}{c_{1}}+\frac{B}{hw} \tag{2}
 $$
 
-&emsp;其中g为组数，$B=hwc_{1}c_{2}/g$为FLOPs。可以看出，给定固定的输入形状$c_{1}\times h\times w$，计算量B, MAC随着g的增大而增大。
+&emsp;其中g为组数，$B=hwc_{1}c_{2}/g$为FLOPs。可以看出，给定固定的输入形状$c_{1}\times h\times w$和计算量B, MAC随着g的增大而增大。
 
 &emsp;为了研究在实际应用中的影响，通过叠加10个分组逐点卷积层，建立了一个基准网络。表2报告了在固定总FLOPs时使用不同组数的运行速度。很明显，使用大组数会显著降低运行速度。例如，在GPU上使用8组比使用1组（标准密集卷积）慢两倍多，在ARM上慢30%。这主要是由于MAC的增加。我们注意到，我们的实现经过了特别的优化，比一组一组地计算卷积要快得多。
 
