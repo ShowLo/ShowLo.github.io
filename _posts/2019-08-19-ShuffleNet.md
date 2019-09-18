@@ -105,7 +105,7 @@ tags:
 
 ## 4. 实验
 
-&emsp;我们主要是在ImageNet 2012分类数据集上评估我们的模型。我们遵循[Aggregated residual transformations for deep neural networks]中使用的大多数训练设置和超参数，但有两个例外:(i)我们将权重衰减设置为4e-5而不是1e-5，采用线性衰减学习率策略(由0.5降至0)；(ii)我们使用稍微不那么激进的规模扩大（scale augmentation）来进行数据预处理。在[MobileNets]中也引用了类似的修改，因为这样的小网络通常存在拟合不足而不是过拟合。在4个gpu上训练一个3×105迭代的模型需要1 - 2天，批处理大小设置为1024。为了进行基准测试，我们比较了在ImageNet验证集上的single-crop top-1性能，即从256×输入图像裁剪224×224中心视图，并评估了分类精度。我们对所有模型使用完全相同的设置，以确保公平的比较。
+&emsp;我们主要是在ImageNet 2012分类数据集上评估我们的模型。我们遵循[Aggregated residual transformations for deep neural networks]中使用的大多数训练设置和超参数，但有两个例外:(i)我们将权重衰减设置为4e-5而不是1e-5，采用线性衰减学习率策略(由0.5降至0)；(ii)我们使用稍微不那么激进的规模扩大（scale augmentation）来进行数据预处理。在[MobileNets]中也引用了类似的修改，因为这样的小网络通常存在拟合不足而不是过拟合。在4个gpu上训练一个$3\times 10^{5}$迭代的模型需要1 - 2天，批处理大小设置为1024。为了进行基准测试，我们比较了在ImageNet验证集上的single-crop top-1性能，即从256×输入图像裁剪224×224中心视图，并评估了分类精度。我们对所有模型使用完全相同的设置，以确保公平的比较。
 
 ### 4.1 消融实验
 
@@ -147,7 +147,7 @@ tags:
 
 ### 4.2 与其他结构单元比较
 
-&emsp;VGG、ResNet、GoogleNet、ResNeXt、Xception等最新领先的卷积单元，在大模型(如$\ge$1 GFLOPs)上追求最先进的结果，但没有充分探索低复杂度条件。在本节中，我们考察了各种构建块，并在相同的复杂度约束下与ShuffleNet进行了比较。
+&emsp;VGG、ResNet、GoogleNet、ResNeXt、Xception等最新领先的卷积单元，在大模型(如$\ge$ 1 GFLOPs)上追求最先进的结果，但没有充分探索低复杂度条件。在本节中，我们考察了各种构建块，并在相同的复杂度约束下与ShuffleNet进行了比较。
 
 &emsp;为了进行公平的比较，我们使用了如表1所示的整体网络架构。我们将阶段2-4中的ShuffleNet单元替换为其他结构，然后调整通道的数量，以确保复杂性保持不变。我们研究的结构包括:
 
@@ -159,7 +159,7 @@ tags:
 
 * *ResNeXt.*&emsp;我们使用cardinality=16和瓶颈比=1:2的设置，如[Aggregated residual transformations for deep neural networks]中建议的那样。我们还研究了其他设置，例如瓶颈比=1:4，并得到了类似的结果。
 
-&emsp;我们使用完全相同的设置来训练这些模型。结果如表4所示。在不同的复杂性下，我们的ShuffleNet模型比大多数其他模型有显著的优势。有趣的是，我们发现了特征图通道与分类精度之间的经验关系。有趣的是，我们发现了特征图通道与分类精度之间的经验关系。例如，在38 MFLOPs复杂度下，VGG-like、ResNet、ResNeXt、Xceplike、ShuffleNet模型第4阶段的输出通道（见表1）分别为50、192、192、288、576，这与精度的提高是一致的。由于ShuffleNet的高效设计，我们可以在给定的计算预算下使用更多的通道，从而通常可以获得更好的性能。
+&emsp;我们使用完全相同的设置来训练这些模型。结果如表4所示。在不同的复杂性下，我们的ShuffleNet模型比大多数其他模型有显著的优势。有趣的是，我们发现了特征图通道与分类精度之间的经验关系。例如，在38 MFLOPs复杂度下，VGG-like、ResNet、ResNeXt、Xceplike、ShuffleNet模型第4阶段的输出通道（见表1）分别为50、192、192、288、576，这与精度的提高是一致的。由于ShuffleNet的高效设计，我们可以在给定的计算预算下使用更多的通道，从而通常可以获得更好的性能。
 
 <center>
     <img style="border-radius: 0.3125em;
@@ -216,7 +216,7 @@ tags:
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表7. ShuffleNet vs. MobileNet （在ImageNet分类任务上）</div>
+    padding: 2px;">表7. MS COCO上的目标检测结果（数字越大表示性能越好）。对于MobileNets，我们比较了两个结果：1）由[MobileNets]报告的COCO检测分数；2）从我们重新实现的MobileNets进行微调，其训练和微调设置与ShuffleNets完全相同</div>
 </center>
 
 ### 4.5 实际加速评估
