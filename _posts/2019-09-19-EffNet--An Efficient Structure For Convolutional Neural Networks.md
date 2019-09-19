@@ -35,9 +35,30 @@ tags:
 
 ## 2. 相关工作
 
-&emsp;
+&emsp;该领域的许多工作都集中在超参数优化上。这类算法在目标算法和优化目标方面都比较通用。\[Practical bayesian optimization of machine learning algorithms\]通过最大化提高模型精度的概率，提出了像CNNs和和SVMs这样的黑箱算法的贝叶斯优化框架。这可以与\[Multi-objective parameter configuration of machine learning algorithms using model-based optimization\]中的多目标优化相结合，从而优化计算复杂度。当初始化正确时，这些方法大都能很好地工作，而且许多方法在受制于搜索空间。利用强化学习，\[Neural architecture search with reinforcement learning\]训练了LSTM来优化超参数，以提高精度和速度。这与最近的进化方法一起对搜索空间的限制更小，但是由于需要额外的步骤，使得开发变得更加复杂。
 
-## 3. MixConv
+&emsp;另一种方法包括通过后处理的方式减少大型模型的大小。\[Noiseout: A simple way to prune neural networks\]、\[Learning to prune deep neural networks via layer-wise optimal brain surgeon\]、\[Pruning convolutional neural networks for resource efficient transfer learning\]等文献提出了精度代价最小的剪枝算法。然而，修剪会导致几个问题。开发过程需要一个额外的阶段，具有需要优化的专用超参数。此外，随着网络架构的改变，模型需要额外的微调。
+
+&emsp;后处理压缩的另一种方法是将模型定点量化为小于常用32位浮点和二进制网络的基元。量化模型虽然要快得多，但与基线相比，它们的精度始终在下降，因此吸引力更小。
+
+&emsp;最后也是最类似于这项工作的，论文如\[Xception\]，\[Mobilenets\]和\[ShuffleNet\]重新讨论了普通卷积算子的本质。这涉及到卷积算子的维数分离，如\[Speeding up convolutional neural networks with low rank expansions\]中所讨论的。这里，使用明显更少的FLOPs来近似原始操作。[Rethinking the inception architecture for computer vision]将$3\times 3$卷积核分成$3\times 1$和$1\times 3$两种形状的连续卷积核。MobileNet模型更进一步，将通道与空间卷积分离开来，空间卷积也只应用于深度，见图1b。通过这样做，大多数计算转移到逐点卷积层，可以显著减少FLOPs。最后，ShuffleNet模型以类似于\[AlexNet\]的方式将逐点卷积层分组，从而解决了逐点卷积层中FLOPs的堆积问题。这导致了极大地减少了FLOPs，但对精度的影响很小，请参见\[ShuffleNet\]中的图1和图1c。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-19-EffNet/figure1.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图1. MobileNet和ShuffleNet与EffNet块的比较。“dw”表示深度卷积，“mp”表示最大池化，“ch”表示输出通道数，“gc”表示分组卷积。</div>
+</center>
+
+&emsp;方法的多样性说明了成功压缩CNN的方法是多种多样的。然而，大多数方法都假定一个大型开发模型，并根据效率进行调整。因此，当应用于一开始就很小的网络时，它们通常似乎达到了它们的极限。由于许多嵌入式系统有一个有限的规格，模型通常是在这些限制下设计的，而不是优化大型网络。在这样的环境下，\[MobileNet\]和\[ShuffleNet\]的局限性变得更加明显，从而为我们的EffNet模型奠定了基础，即使应用于较浅和较窄的模型，该模型也显示出相同的能力。
+
+&emsp;最后，请注意，上面的方法并不相互排斥。例如，我们的模型也可以转换为定点，剪枝和对最佳超参数集进行优化。
+
+## 3. 提高模型效率的构建块
 
 &emsp;
 
@@ -48,17 +69,6 @@ tags:
 &emsp;
 
 &emsp;
-
-<center>
-    <img style="border-radius: 0.3125em;
-    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-19-EffNet/figure1.png">
-    <br>
-    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
-    display: inline-block;
-    color: #999;
-    padding: 2px;">图1. </div>
-</center>
 
 &emsp;
 
