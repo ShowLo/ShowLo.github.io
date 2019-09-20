@@ -60,68 +60,185 @@ tags:
 
 ## 3. 提高模型效率的构建块
 
-&emsp;
+&emsp;本节讨论提高效率的最常见实践。给出的结果有助于识别以前技术中的弱点，并以统一的EffNet块的形式构造合适的解决方案。由于实际原因，我们避免详细介绍下面实验的具体设置。相反，我们将在第5节中讨论它们的结果并展示它们的整体效果。
 
-### 3.1 MixConv Feature Map
+&emsp;多任务、竞争成本和交互式运行时间的组合对工业应用程序的模型大小有严格的限制。事实上，这些要求常常导致使用更为经典的计算机视觉算法，这些算法经过优化，能够非常快速地运行特定的任务。此外，监管限制常常禁止一个单一网络解决方案，因为它们需要备用系统和高度可解释的决策过程。因此，降低项目中所有小分类器的计算成本，可以将计算能力重新分配到更关键的位置，也可以实现更大容量的更深、更广的模型。
 
-&emsp;
+&emsp;探索以前工作的局限性发现，模型越小，在转换为MobileNet或ShuffleNet时损失的精度就越大，参见第5节。在分析这些建议修改的性质时，我们遇到了几个问题。
 
-&emsp;
+**瓶颈结构**&emsp;\[SqueezeNet\]中讨论的瓶颈结构将缩减因子8应用于块中输入通道数量与输出通道数量的关系。 一个ShuffleNet块使用4的缩减因子。然而，窄模型往往没有足够的通道来实现如此大幅度的缩减。在我们所有的实验中，我们都看到了准确性的下降，而不是适度的下降。因此，我们建议使用瓶颈因子2。此外，使用深度乘数为2的空间卷积（见下一段）也很有效，即第一个深度卷积层也使通道数量翻倍。
 
-&emsp;
+**步长和池化**&emsp;MobileNet和ShuffleNet模型都在其块中对深度空间卷积层应用了步长2。我们的实验表明这种做法存在两个问题。首先，与最大池化相比，我们多次看到精度下降。这在某种程度上是预期的，因为跨步卷积容易产生混叠。
 
-&emsp;
+&emsp;此外，将最大池化应用于空间卷积层不允许网络在将数据压缩到其传入大小的四分之一之前对数据进行正确编码。尽管如此，早期的池化意味着在块中接下来的层更cheap。为了在保持早期池化的优点的同时也放松数据压缩，我们建议使用可分离池化。与可分离卷积相似，我们首先在第一个空间卷积层之后应用一个$2\times 1$的池化核（具有相应的步长）。然后，池化的第二阶段跟在块最后的逐点卷积之后。
 
-&emsp;
+**可分离卷积**&emsp;由[Rethinking the inception architecture for computer vision]提出，但在其他方面经常被忽略，我们重新考虑连续可分离空间卷积的想法，即使用$3\times 1$和$1\times 3$层而不是单个$3\times 3$层。分离空间卷积可能只会在FLOPs方面产生很小的差异，但是，结合我们的池化策略，它变得更加重要。
 
-&emsp;
+**残差连接**&emsp;最初由[Deep residual learning for image recognition]提出，并很快被许多人采用，残差连接已成为标准实践。然而，论文也表明，残差连接大多有益于更深的网络。在使用残差连接的整个实验过程中，我们扩展了这一说法，并报告了准确性的持续下降。我们将此解释为对小型网络无法很好地处理大型压缩因子的主张的支持。
 
-&emsp;
+**分组卷积**&emsp;继\[ShuffleNet\]的有希望的结果之后，我们也用相似的结构进行了实验。最极端的设置是原始的ShuffleNet，最轻松的设置是将块中的最后一个逐点层进行分组。结果显示准确度明显下降。因此，我们避免使用分组卷积，尽管它具有诱人的计算优势。
 
-### 3.2 MixConv的设计选择
+**解决第一层的问题**&emsp;MobileNet和ShuffleNet都避免替换第一层。他们声称以这一层为开始很cheap。我们恭敬地表示反对，并相信每一个优化都很重要。在优化了网络中的所有其他层之后，第一层成比例地变大。在我们的实验中，用EffNet块替换第一个层可以节省大约30%的计算量。
 
-&emsp;
+## 4. EffNet模型
 
-### 3.3 MixConv在MobileNets上的性能
+### 4.1 数据压缩
 
-&emsp;
+&emsp;通过分析第3节中讨论的各种方法的效果，我们发现小型网络对数据压缩非常敏感。在整个实验过程中，每一个导致更大瓶颈的实践也损害了准确性。为了更好地理解数据流概念，表1列出了通过Cifar10网络的不同阶段的输入维数。
 
-## 4. MixNet
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-19-EffNet/table1.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表1. 选定模型中的数据流。人们可以直观地理解在早期阶段进行积极的数据压缩会如何损害准确性。压缩因子为4或4以上用红色标记。gc4表示分组数为4的分组卷积。</div>
+</center>
 
-&emsp;
+### 4.2 EffNet块
 
-### 4.1 架构搜索
+&emsp;我们提出了一个高效的卷积块，它既解决了数据压缩问题，又实现了第3节的观点。我们将此块设计为一个通用结构，以无缝地替换瘦网络中的普通卷积层，但不限于此。
 
-&emsp;
+&emsp;我们以与[Inception V2]类似的方式开始，将$3\times 3$深度卷积分解为两个线性层。这允许我们在第一个空间层之后进行池化操作，从而为第二层节省计算。
 
-&emsp;
+&emsp;然后我们沿着空间维度对子采样进行分割。如表1和图1所示，我们在第一次深度卷积后应用$1\times 2$的最大池化核。对于第二个子采样，我们选择用$2\times 1$的核和相应的步长来代替普通的逐点卷积。这实际上有相同的FLOPs，但准确性略好。
 
-&emsp;
+&emsp;在第3节的初步实验之后，我们决定放松第一个逐点卷积的瓶颈因子。我们不使用四分之一的输出通道，而是采用0.5的因子（最小通道数量为6）作为首选。
 
-### 4.2 MixNet在ImageNet上的表现
+## 5. 实验
 
-&emsp;
+&emsp;对于评估部分，我们选择了符合我们一般设置的数据集：少量的类和相对较小的输入分辨率。从\[MobileNet\]和\[ShuffleNet\]的结果来看，它们显示出与baseline相当的准确度，我们没有理由相信EffNet的表现会有很大差异。因此，我们专注于更小的模型。对于每个数据集，我们都要快速手动搜索baseline可能的超参数，以满足需求：两到三个隐藏层和少量的通道。其他体系结构则简单地替换卷积层，而不改变超参数。
 
-&emsp;
+&emsp;每个实验重复五次，以抵消随机初始化的影响。
 
-&emsp;
+&emsp;我们既没有使用数据增强，也没有对[The unreasonable effectiveness of noisy data for fine-grained recognition]提出的额外数据进行预训练。超参数也没有优化，因为我们的目标是用EffNet块替换每个给定网络中的卷积层。
 
-### 4.3 MixNet架构
+&emsp;我们使用Tensorflow和使用Adam优化器进行训练，学习率为0.001，$\beta=0.75$。
 
-&emsp;
+&emsp;作为补充实验，我们评估了一个更大的EffNet模型，其FLOPs与baseline大致相同。在下面的表中，它被称为large，由表2和表4中的两个附加层和更多通道（或者表3中的更多通道）组成。我们还训练了ShuffleNet和MobileNet的版本，使用更多的通道来匹配我们的EffNet模型的FLOPs，从而评估架构的可比性。
 
-### 4.4 迁移学习性能
+### 5.1 Cifar10
 
-&emsp;
+&emsp;Cifar10是计算机视觉中一个简单、基本的数据集，是我们要改进的任务类型的一个很好的例子。它的图像很小，只代表有限的类。与MobileNet和ShuffleNet相比，我们取得了显著的改进，且只需要比baseline少7倍的浮点运算（表2）。我们将这种改进与网络的额外深度联系起来，这意味着EffNet块模拟的是一个更大、更深的网络，它不像其他模型那样不适合。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-19-EffNet/table2.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表2. Cifar10数据集上的模型比较</div>
+</center>
 
-## 5. 结论
+### 5.2 Street View House Numbers
 
-&emsp;
+&emsp;与Cifar10类似，SVHN基准也是评估简单网络的常用数据集。该数据由32×32像素的patch组成，patch以数字为中心，并带有相应的标签。表3显示了实验结果，无论在精度还是在FLOPs方面都支持我们的EffNet模型。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-19-EffNet/table3.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表3. SVHN数据集的模型比较</div>
+</center>
+
+### 5.3 German Traffic Sign Recognition Benchmark
+
+&emsp;GTSRB数据集是一个稍微较旧的数据集，但它在大多数当前的驾驶员辅助应用中仍然非常相关。它有超过50,000张图片和大约43个类，它呈现了一个相当小的任务，数据变化很大，因此是一个有趣的基准。由于即使是很小的网络也很快开始对这些数据进行过拟合，因此我们将输入图像的大小调整为$32\times 32$，并在输出层之前使用dropout，其概率为50%。结果如表4所示，也支持我们的EffNet模型。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-19-EffNet/table4.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表4. GTSRB数据集上的模型比较</div>
+</center>
+
+## 6. 与MobileNet V2比较
+
+&emsp;随着[MobileNet V2]和我们的工作同时出现，我们扩展了这项工作并编写了一个快速比较。最后，我们展示了如何使用一些小的调整，我们在精度方面超过[MobileNet V2]，同时计算起来也同样昂贵。
+
+### 6.1 体系结构的比较
+
+&emsp;[MobileNet V2]和这项工作都是沿着卷积运算的某些维数进行分离，以节省计算。与[MobileNet V2]不同，我们还将空间的二维卷积核分离为两个一维卷积核。通过这样做，我们确实注意到在整个实验中，精确度下降了0.5%左右，但是它允许一个更有效的实现，并且需要更少的计算。
+
+&emsp;为了解决数据压缩问题，[MobileNet V2]建议通过将输入通道的数量乘以4-10的因子来显著增加整个块中的数据量。这使得压缩相对于相应块的输入来说不那么具有侵略性，同时还将其移动到块的末尾，即反向瓶颈。他们进一步认识到ReLU函数的一个有趣的、常常被忽视的特性。当使用批归一化层时，ReLU将一半的数据设置为零，从而进一步压缩数据。为了解决这个问题，[MobileNet V2]在每个块的末尾使用一个线性逐点卷积。实际上，它们得到一个线性层，接着另一个非线性逐点层，即B∗(A∗x)，其中x是输入，A是第一层，B是第二层。移除层A只是简单地迫使网络将层B作为函数B*A来学习。我们的实验也显示出对层A的存在不关心。然而，我们显示在层A的顶部使用leaky ReLU显著地提高了性能。
+
+### 6.2 EffNet调整
+
+&emsp;考虑到最新的实验，我们通过引入三个小的调整来修改我们的架构。首先，考虑瓶颈结构，我们将第一个逐点层的输出通道定义为块的输入通道而不是输出通道的函数。与[MobileNet V2]相似，但不那么极端，通道的数量由下式给出：
+
+$$
+\lfloor\frac{inputChannels*expansionRate}{2}\rfloor
+$$
+
+&emsp;其次，空间卷积中的深度乘数，我们之前只是在某些情况下增加了它，现在已经自然地集成到我们的架构中并设置为2。
+
+&emsp;最后，我们用一个leaky ReLU替换逐点层上的ReLU。
+
+&emsp;请注意，无论是深度卷积的激活函数还是网络的第一层，实验结果都不是决定性的。为了简单起见，我们使用了一个ReLU，并注意到leaky ReLU和线性空间卷积偶尔都更可取。在接下来的实验中，第一个层是带有最大池化的普通卷积层。
+
+### 6.3 实验
+
+&emsp;我们使用与第5节相同的数据集，但针对的是另一种比较。现在我们评估三个模型。
+
+1. 修正后的EffNet模型
+
+2. 原始的MobileNet V2模型
+
+3. 我们建议对MobileNet V2模型进行的修改，用池化来代替跨步卷积，用leaky ReLU来代替线性瓶颈。下表中称为mob_imp（移动改进）。
+
+&emsp;模型分别以2、4和6种不同的拓展率进行评估，mob_imp仅以6的拓展率进行测试。5、6和7显示了我们修改后的体系结构如何在大多数设置中实现比[MobileNet V2]更好的准确性，而只有略微更多的FLOPs。此外，尽管mob_imp模型的性能优于我们的模型，但是它的计算成本要高得多。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-19-EffNet/table5.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表5. 不同扩展率下Cifar10数据集上MobileNet V2和EffNet的比较</div>
+</center>
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-19-EffNet/table6.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表6. 不同扩展率下SVHN数据集上MobileNet V2和EffNet的比较</div>
+</center>
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-19-EffNet/table7.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表7. 不同扩展率下GTSRB数据集上MobileNet V2和EffNet的比较</div>
+</center>
+
+## 7. 结论
+
+&emsp;我们提出了一种新的CNNs卷积块，称为EffNet，它承诺在保持甚至超过baseline精度的同时，显著减少计算量。我们的统一块设计是为了确保在嵌入式和移动硬件的应用程序中安全替换普通卷积层。由于网络被减少到baseline的FLOPs的一小部分，我们的方法有两个优点，第一个是更快的推理，第二个是可以应用更大、更深的网络。我们还展示了这样一个更大的网络在需要类似数量的操作时明显优于baseline。
 
 ---
 
 ## 个人看法
 
-&emsp;
+&emsp;emmmm讲道理，这篇文章看得我迷迷糊糊的，作者讲起来感觉乱乱的，果然C会的文章跟顶会的距离还是有点大啊。文章最主要的创新点还是在于提出的EffNet构建块，不仅用上了深度卷积（这是把通道与空间两个维度给分割开来了），还用上了空间可分离卷积（把宽和高两个维度给分割开来）。它把原来的深度卷积分成在宽（用$1\times 3$卷积核）和高（用$3\times 1$卷积核）两个维度上分别进行，而且在宽度维度进行完卷积后还做了个宽度方向的池化（用$1\times 2$池化），那么下面再进行高度方向的卷积时就有了计算量上的减少。
