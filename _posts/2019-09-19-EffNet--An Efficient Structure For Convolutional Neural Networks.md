@@ -13,7 +13,7 @@ tags:
     - CNN
 ---
 
-## MixNet
+## EffNet
 
 &emsp;这篇文章主要是在MobileNet之上做修改，增加了一个空间可分离卷积，发表在2018 25th IEEE International Conference on Image Processing (ICIP)上。原文可见[EffNet: An Efficient Structure for Convolutional Neural Networks](https://arxiv.org/abs/1801.06434)。
 
