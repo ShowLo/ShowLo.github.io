@@ -119,3 +119,21 @@ python models/research/object_detection/model_main.py \
     color: #999;
     padding: 2px;">可视化训练过程</div>
 </center>
+
+## 输出模型
+
+&emsp;训练完成之后，可以通过下面的命令输出模型：
+
+```
+python .\models\research\object_detection\export_inference_graph.py \
+    --input_type=image_tensor \
+    --pipeline_config_path=./training/ssdlite_mobilenet_v2_coco.config \
+    --trained_checkpoint_prefix=../Detection/backup/model.ckpt-39160 \
+    --output_directory=inference_graph
+```
+
+&emsp;其中的路径根据自己的实际情况修改即可。执行完上面的命令之后会生成一个`inference_graph`文件夹，其下有`saved_model`文件夹和checkpoint、frozen_inference_graph.pb等文件，其中`.pb`文件将是接下来要用到的最重要的文件。
+
+## 测试模型
+
+&emsp;用jupyter打开`object_detection`目录下的`object_detection_tutorial.ipynb`文件，修改一些实际路径再运行就可以得到测试结果了。
