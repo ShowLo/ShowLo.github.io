@@ -48,30 +48,30 @@ tags:
 
 &emsp;移动模型已经建立在越来越高效的构建块之上。MobileNetV1引入深度可分离卷积作为传统卷积层的有效替代。深度可分卷积通过将空间滤波与特征生成机制分离，有效地分解了传统卷积。深度可分卷积由两个独立的层定义:用于空间滤波的轻量级深度卷积和用于特征生成的较重的1x1逐点卷积。
 
-&emsp;MobileNetV2引入了线性瓶颈和反向残差结构，以便利用问题的低秩性质使层结构更加有效。这个结构如下图所示，由1x1拓展卷积（注：即提升通道数）、深度卷积和1x1投影层定义。当且仅当输入和输出具有相同数量的通道时，才用残差链接连接它们。该结构在保持输入和输出的紧凑表示的同时，在内部扩展到高维特征空间，以增加每个通道非线性转换的表现力。
+&emsp;MobileNetV2引入了线性瓶颈和反向残差结构，以便利用问题的低秩性质使层结构更加有效。这个结构如图3所示，由1x1拓展卷积（注：即提升通道数）、深度卷积和1x1投影层定义。当且仅当输入和输出具有相同数量的通道时，才用残差链接连接它们。该结构在保持输入和输出的紧凑表示的同时，在内部扩展到高维特征空间，以增加每个通道非线性转换的表现力。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/MobileNetV2.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/figure3.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">MobileNetV2层(反向残差和线性瓶颈)。每个块由窄的输入和输出(瓶颈)组成，它们没有非线性，然后扩展到一个更高维度的空间并投影到输出。残差连接瓶颈(而不是扩展)</div>
+    padding: 2px;">图3. MobileNetV2层(反向残差和线性瓶颈)。每个块由窄的输入和输出(瓶颈)组成，它们没有非线性，然后扩展到一个更高维度的空间并投影到输出。残差连接瓶颈(而不是扩展)</div>
 </center>
 
-&emsp;MnasNet建立在MobileNetV2结构上，在瓶颈结构中引入基于压缩和激励（squeeze and excitation）的轻量级注意力模块。注意，与[Squeeze-and-Excitation Networks](https://arxiv.org/abs/1709.01507)中提出的基于ResNet的模块相比，压缩和激励模块集成在不同的位置。此模块位于拓展的深度滤波器之后，以便注意力机制应用于最大的表示（representation），如下图所示。
+&emsp;MnasNet建立在MobileNetV2结构上，在瓶颈结构中引入基于压缩和激励（squeeze and excitation）的轻量级注意力模块。注意，与[Squeeze-and-Excitation Networks](https://arxiv.org/abs/1709.01507)中提出的基于ResNet的模块相比，压缩和激励模块集成在不同的位置。此模块位于拓展的深度滤波器之后，以便注意力机制应用于最大的表示（representation），如图4所示。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/MobileNetV3.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/figure4.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">MobileNetV2+Squeeze-and-Excite。与SENet相比，我们在残差层施加压缩和激励。 我们根据层的不同使用不同的非线性，详见5.2节</div>
+    padding: 2px;">图4. MobileNetV2+Squeeze-and-Excite。与SENet相比，我们在残差层施加压缩和激励。 我们根据层的不同使用不同的非线性，详见5.2节</div>
 </center>
 
 &emsp;对于MobileNetV3，我们使用这些层的组合作为构建块，以便构建最有效的模型。图层也通过修改swish非线性进行升级。压缩和激励以及swish非线性都使用了sigmoid，它的计算效率很低，而且很难在定点算法中保持精度，因此我们将其替换为硬sigmoid，如5.2节所讨论的。
@@ -124,17 +124,17 @@ tags:
 
 &emsp;为了减少延迟并保留高维特征，我们将该层移到最终的平均池化之后。最后一组特征现在以1x1空间分辨率计算，而不是7x7空间分辨率。这种设计选择的结果是，在计算和延迟方面，特征的计算变得几乎是free的。
 
-&emsp;一旦降低了该特征生成层的成本，就不再需要以前的瓶颈投影层来减少计算量。该观察允许我们删除前一个瓶颈层中的投影和滤波层，从而进一步降低计算复杂度。原始阶段和优化后的最后一个阶段如下图所示。有效的最后一个阶段将延迟减少了10毫秒，即15%的运行时间，并将操作数量减少了3000万个MAdds，几乎没有损失精度。 第6节包含了详细的结果。
+&emsp;一旦降低了该特征生成层的成本，就不再需要以前的瓶颈投影层来减少计算量。该观察允许我们删除前一个瓶颈层中的投影和滤波层，从而进一步降低计算复杂度。原始阶段和优化后的最后一个阶段如图5所示。有效的最后一个阶段将延迟减少了10毫秒，即15%的运行时间，并将操作数量减少了3000万个MAdds，几乎没有损失精度。 第6节包含了详细的结果。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/original-efficient.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/figure5.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">原来的和有效的最后一个阶段的比较。这个更有效的最后阶段能够在不损失精度的情况下，在网络的末端丢弃三个expensive的层</div>
+    padding: 2px;">图5. 原来的和有效的最后一个阶段的比较。这个更有效的最后阶段能够在不损失精度的情况下，在网络的末端丢弃三个expensive的层</div>
 </center>
 
 &emsp;另一个expensive的层是初始过滤器集。目前的移动模型倾向于在一个完整的3x3卷积中使用32个滤波器来构建初始滤波器库进行边缘检测。通常这些过滤器是彼此的镜像。我们尝试减少滤波器的数量，并使用不同的非线性来尝试减少冗余。我们决定对这一层使用硬swish非线性，因为它表现得和其他被测试的非线性一样好。我们能够将滤波器的数量减少到16个，同时保持与使用ReLU或swish的32个滤波器相同的精度。这节省了额外的3毫秒和1000万MAdds。
@@ -151,17 +151,17 @@ $$swish(x)=x\cdot\sigma(x)$$
 
 $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
 
-&emsp;最近在某篇文章中也提出了类似的hard-swish版本。下图显示了sigmoid和swish非线性的软、硬版本的比较。我们选择常量的动机是简单，并且与原始的平滑版本很好地匹配。在我们的实验中，我们发现所有这些函数的硬版本在精度上没有明显的差异，但是从部署的角度来看，它们具有多种优势。首先，几乎所有的软件和硬件框架上都可以使用ReLU6的优化实现。其次，在量化模式下，它消除了由于近似sigmoid的不同实现而引起的潜在数值精度损失。最后，即使优化了量化的sigmoid实现，其速度也比相应的ReLU慢得多。在我们的实验中，用量化模式下的swish替换h-swish使推理延迟增加了15%。
+&emsp;最近在某篇文章中也提出了类似的hard-swish版本。图6显示了sigmoid和swish非线性的软、硬版本的比较。我们选择常量的动机是简单，并且与原始的平滑版本很好地匹配。在我们的实验中，我们发现所有这些函数的硬版本在精度上没有明显的差异，但是从部署的角度来看，它们具有多种优势。首先，几乎所有的软件和硬件框架上都可以使用ReLU6的优化实现。其次，在量化模式下，它消除了由于近似sigmoid的不同实现而引起的潜在数值精度损失。最后，在实践中，h-swish可以作为一个分段函数来实现，以减少内存访问次数，从而大大降低了延迟。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/sigmoid-swish.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/figure6.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">sigmoid和swish非线性及其他“硬”对应物</div>
+    padding: 2px;">图6. sigmoid和swish非线性及其他“硬”对应物</div>
 </center>
 
 &emsp;2. 随着我们深入网络，应用非线性的成本会降低，因为每层激活内存通常在分辨率下降时减半。顺便说一句，我们发现swish的大多数好处都是通过只在更深的层中使用它们实现的。因此，在我们的架构中，我们只在模型的后半部分使用h-swish。我们参照表1和表2来获得精确的布局。
@@ -188,13 +188,13 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
     padding: 2px;">表2. MobileNetv3-Small规范。符号见表1。</div>
 </center>
 
-&emsp;即使有了这些优化，h-swish仍然会带来一些延迟成本。然而，正如我们在第6节中所展示的，对准确性和延迟的净影响是积极的，它为进一步的软件优化提供了一个场所：一旦平滑的Sigmoid被逐段线性函数取代，大部分开销都是内存访问，可以通过将非线性与前一层融合来消除。
+&emsp;即使有了这些优化，h-swish仍然会带来一些延迟成本。然而，正如我们在第6节中所演示的那样，当使用基于分段函数的优化实现时，对精度和延迟的净影响是正的，没有优化，并且非常显著。
 
-#### 5.2.1 Large squeeze-and-excite
+#### 5.3 Large squeeze-and-excite
 
 &emsp;在Mnasnet中，压缩-激发瓶颈的大小与卷积瓶颈的大小有关。取而代之的是，我们将它们全部替换为固定为拓展层通道数的1/4。我们发现这样做可以在适当增加参数数量的情况下提高精度，并且没有明显的延迟成本。
 
-### 5.3 MobileNetV3定义
+### 5.4 MobileNetV3定义
 
 &emsp;MobileNetV3被定义为两个模型:MobileNetV3-Large和MobileNetV3-Small。这些模型分别针对高资源用例和低资源用例。通过将平台感知的NAS和NetAdapt用于网络搜索，并结合本节定义的网络改进，可以创建模型。我们的网络的完整规范见表1和表2。
 
@@ -212,32 +212,32 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
 
 #### 6.1.2 测量设置
 
-&emsp;为了测量延迟，我们使用标准的谷歌Pixel手机，并通过标准的TFLite基准测试工具运行所有网络。我们在所有测量中都使用单线程大内核。我们没有报告多核推理时间，因为我们发现这种设置对移动应用程序不太实用。
+&emsp;为了测量延迟，我们使用标准的谷歌Pixel手机，并通过标准的TFLite基准测试工具运行所有网络。我们在所有测量中都使用单线程大内核。我们没有报告多核推理时间，因为我们发现这种设置对移动应用程序不太实用。我们为tensorflow lite提供了一个h-swish的原子操作符，在最新版本中它是默认的。我们在图9展示了优化后的h-swish的影响。
 
 ### 6.2 结果
 
-&emsp;如下图所示，我们的模型优于目前的STOA，如MnasNet、ProxylessNas和MobileNetV2。我们在表3中报告了不同Pixel手机上的浮点性能。我们在表4中包括量化结果。
+&emsp;如图1所示，我们的模型优于目前的STOA，如MnasNet、ProxylessNas和MobileNetV2。我们在表3中报告了不同Pixel手机上的浮点性能。我们在表4中包括量化结果。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/MobileNetV3-small-large.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/figure1.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">Pixel 1 延迟与ImageNet上top-1准确率之间的权衡。所有模型都使用输入分辨率224。V3 large和V3 small使用乘数0.75、1和1.25来显示最佳边界。使用TFLite在同一设备的单个大内核上测量所有延迟。MobileNetV3-Small和Large是我们提议的下一代移动模型</div>
+    padding: 2px;">图1. Pixel 1 延迟与ImageNet上top-1准确率之间的权衡。所有模型都使用输入分辨率224。V3 large和V3 small使用乘数0.75、1和1.25来显示最佳边界。使用TFLite在同一设备的单个大内核上测量所有延迟。MobileNetV3-Small和Large是我们提议的下一代移动模型</div>
 </center>
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/Accuracy-MADDS.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/figure2.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">MAdds和top-1准确率之间的权衡。这允许比较针对不同硬件或软件框架的模型。所有MobileNetV3用于输入分辨率224，并使用乘数0.35、0.5、0.75、1和1.25。其他分辨率见第6节</div>
+    padding: 2px;">图2. MAdds和top-1准确率之间的权衡。这允许比较针对不同硬件或软件框架的模型。所有MobileNetV3用于输入分辨率224，并使用乘数0.35、0.5、0.75、1和1.25。其他分辨率见第6节</div>
 </center>
 
 <center>
@@ -248,7 +248,7 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表3. Pixel系列手机的浮点性能（“P-n”表示Pixel-n手机）。所有延迟都以毫秒为单位。推理延迟是使用批量大小为1的单个大核心来测量的</div>
+    padding: 2px;">表3. Pixel系列手机的浮点性能（“P-n”表示Pixel-n手机）。所有延迟都以毫秒为单位，并使用批大小为1的单个大核心来测量。top-1精度是在ImageNet上测得的。</div>
 </center>
 
 <center>
@@ -262,24 +262,24 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
     padding: 2px;">表4. 量化性能。所有延迟都以毫秒为单位。推理延迟是在各自的Pixel 1/2/3设备上使用单个大核心来测量的</div>
 </center>
 
-&emsp;在下图中，我们展示了MobileNetV3性能权衡作为乘数和分辨率的函数。请注意，MobileNetV3-Small的性能比MobileNetV3-Large的性能好得多，其乘法器缩放到与性能匹配的倍数接近3%。另一方面，分辨率提供了比乘数更好的权衡。但是，需要注意的是，分辨率通常是由问题决定的(例如分割和检测问题通常需要更高的分辨率)，因此不能总是用作可调参数。
+&emsp;在图7中，我们展示了MobileNetV3性能权衡作为乘数和分辨率的函数。请注意，MobileNetV3-Small的性能比MobileNetV3-Large的性能好得多，其乘法器缩放到与性能匹配的倍数接近3%。另一方面，分辨率提供了比乘数更好的权衡。但是，需要注意的是，分辨率通常是由问题决定的(例如分割和检测问题通常需要更高的分辨率)，因此不能总是用作可调参数。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/MobileNetV3-V2.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/figure7.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">作为不同乘数和分辨率函数的MobileNetV3性能。在我们的实验中，我们使用了固定分辨率为224同时乘数为0.35、0.5、0.75、1.0和1.25，以及固定深度乘数为1.0同时分辨率为96、128、160、192、224和256。彩色效果最佳</div>
+    padding: 2px;">图7. 作为不同乘数和分辨率函数的MobileNetV3性能。在我们的实验中，我们使用了固定分辨率为224同时乘数为0.35、0.5、0.75、1.0和1.25，以及固定深度乘数为1.0同时分辨率为96、128、160、192、224和256。top-1精度是在ImageNet上测量得到的，延迟以ms为单位。</div>
 </center>
 
 #### 6.2.1 模型简化测试（Ablation study）
 
 ##### 非线性的影响
 
-&emsp;在表5和下图中，我们展示了在何处插入h-swish的决定如何影响延迟。特别重要的是，我们注意到，在整个网络上使用h-swish会导致精度略有提高(0.2)，同时增加了近20%的延迟，并再次回到效率边界（efficient frontier）。
+&emsp;在表5中，我们研究了在何处插入h-swish非线性的选择，以及使用优化实现相对于简单实现的改进。可以看出，使用优化的h-swish实现可以节省6ms（超过运行时间的10%）。优化后的h-swish只比传统的ReLU多增加1ms。
 
 <center>
     <img style="border-radius: 0.3125em;
@@ -289,35 +289,35 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">表5. 非线性对MobileNetV3-Large的影响。在h-swish@N中，N表示启用h-swish的第一层的通道数</div>
+    padding: 2px;">表5. 非线性对MobileNetV3-Large的影响。在h-swish@N中，N表示启用h-swish的第一层的通道数。第三列显示了没有优化h-swish的运行时间。top-1精度是在ImageNet上测量得到的，延迟以ms为单位。</div>
 </center>
+
+&emsp;图8显示了基于非线性选择和网络宽度的有效边界。MobileNetV3在网络中间使用h-swish，并且明显控制着ReLU。有趣的是，向整个网络添加h-swish略胜于扩展网络的插值边界。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/h-swish.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/figure8.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">h-swish vs swish vs ReLU对延迟的影响。曲线显示了使用深度乘数的边界。请注意，将h-swish放置在112个或更多通道的所有层，沿着最佳边界移动</div>
+    padding: 2px;">图8. h-swish与ReLU对优化和非优化h-swish延迟的影响。曲线显示了使用深度乘数的边界。注意，将h-swish放置在具有80个或更多通道的所有层上（V3）为优化的h-swish和非优化的h-swish提供了最佳的权衡。top-1精度是在ImageNet上测量得到的，延迟以ms为单位。</div>
 </center>
-
-&emsp;另一方面，与ReLU相比，使用h-swish提高了效率边界，尽管仍然比ReLU计算代价高了12%左右。最后，我们注意到，当h-swish通过融合到卷积运算符中得到优化时，我们预计h-swish和ReLU之间的延迟差距即使没有消失，也会显著减小。然而，h-swish和swish之间不可能有这样的改进，因为计算sigmoid本来代价就比较高。
 
 ##### 其他组件的影响
 
-&emsp;在下图中，我们展示了不同组件的引入是如何沿着延迟/准确率曲线移动的。
+&emsp;在图9中，我们展示了不同组件的引入是如何沿着延迟/准确率曲线移动的。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/progression.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/figure9.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">向网络体系结构中添加单个组件的影响</div>
+    padding: 2px;">图9. 向网络体系结构中添加单个组件的影响。进展过程是向上和向左移动的。</div>
 </center>
 
 ### 6.3 检测
@@ -343,17 +343,17 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
 
 ### 6.4 语义分割
 
-&emsp;在本小节中，我们使用MobileNetV2和提出的MobileNetV3作为移动语义分割的网络骨架。此外，我们比较了两个分割头。第一个是在MobileNetV2中提出的R-ASPP。R-ASPP是一种无源空间金字塔池化模块的简化设计，它只采用由1×1卷积和全局平均池化操作组成的两个分支。在这项工作中，我们提出了另一种轻型分割头，称为Lite R-ASPP(或LR-ASPP)，如下图所示。Lite R-ASPP是对R-ASPP的改进，它部署全局平均池的方式类似于压缩-激励模块，其中我们使用了一个具有较大步长的较大池化核(以节省一些计算)，并且模块中只有一个1×1卷积。我们对MobileNetV3的最后一个块应用空洞卷积（atrous convolution）来提取更密集的特性，并进一步从底层特性添加一个跳跃（skip）连接来捕获更详细的信息。
+&emsp;在本小节中，我们使用MobileNetV2和提出的MobileNetV3作为移动语义分割的网络骨架。此外，我们比较了两个分割头。第一个是在MobileNetV2中提出的R-ASPP。R-ASPP是一种无源空间金字塔池化模块的简化设计，它只采用由1×1卷积和全局平均池化操作组成的两个分支。在这项工作中，我们提出了另一种轻型分割头，称为Lite R-ASPP(或LR-ASPP)，如图10所示。Lite R-ASPP是对R-ASPP的改进，它部署全局平均池的方式类似于压缩-激励模块，其中我们使用了一个具有较大步长的较大池化核(以节省一些计算)，并且模块中只有一个1×1卷积。我们对MobileNetV3的最后一个块应用空洞卷积（atrous convolution）来提取更密集的特性，并进一步从底层特性添加一个跳跃（skip）连接来捕获更详细的信息。
 
 <center>
     <img style="border-radius: 0.3125em;
     box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
-    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/MobileNetV3-Segmentation.png">
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-05-22-MobileNetV3/figure10.png">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
     color: #999;
-    padding: 2px;">在MobileNetV3的基础上，提出的分割头Lite R-ASPP提供了快速的语义分割结果</div>
+    padding: 2px;">图10. 在MobileNetV3的基础上，提出的分割头Lite R-ASPP提供了快速的语义分割结果，同时混合了多种分辨率的特征。</div>
 </center>
 
 &emsp;我们使用度量mIOU对Cityscapes数据集进行了实验，只使用了“fine”注释。 我们采用与MobileNetV2相同的训练方案。 我们所有的模型都是从零开始训练，没有在ImageNet上进行预训练，并使用单尺度输入进行评估。 与目标检测类似，我们发现我们可以在不显著降低性能的情况下，将网络骨干最后一块的通道减少2倍。 我们认为这是因为骨干网络是为具有1000类的ImageNet图像分类设计的，而Cityscapes只有19类，这意味着骨干网络中存在一定的通道冗余。
@@ -371,7 +371,7 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
     padding: 2px;">表7. Cityscapes验证集的语义分割结果。RF2：将最后一个块中的滤波器减少2倍。V2 0.5和V2 0.35是MobileNetV2，深度乘数分别为0.5和0.35。SH：分割头，其中$\times$使用R-ASSP，而$\checkmark$使用建议的LR-ASSP。F：分割头中使用的滤波器数量。CPU（f）：在Pixel 3（浮点）用全分辨率输入（即1024×2048）的单个大核心上测量的CPU时间。CPU（h）：测量的CPU时间，用半分辨率输入（即512×1024）。第8行和第11行是我们的MobileNetv3细分候选</div>
 </center>
 
-&emsp;表8显示了我们的Cityscapes测试集结果。我们的以MobileNetV3为网络骨干的分割模型，表现分别比ESPNetv2、CCC2和ESPNetv1超出10.5%、10.6%、12.3%，同时在MAdds方面更快。在MobileNetV3的最后一个块中，当不使用空洞卷积提取密集特征图时，性能略有下降0.6%，但速度提高到1.98B(对于半分辨率输入)，分别是ESPNetv2、CCC2和ESPNetv1的1.7倍、1.59倍和2.24倍。此外，我们的以MobileNetV3-Small作为骨干网络的模型仍然优于它们至少一个6.2%的健壮差额（healthy margin）。我们最快的模型版本比ESPNetv2-small好13.6%，推理速度稍微快一些。
+&emsp;表8显示了我们的Cityscapes测试集结果。我们的以MobileNetV3为网络骨干的分割模型，性能分别比ESPNetv2、CCC2和ESPNetv1提高6.4%、10.6%、12.3%，同时在MAdds方面更快。在MobileNetV3的最后一个块中，当不使用空洞卷积提取密集特征图时，性能略有下降0.6%，但速度提高到1.98B(对于半分辨率输入)，分别是ESPNetv2、CCC2和ESPNetv1快1.36倍、1.59倍和2.27倍。此外，我们的以MobileNetV3-Small作为骨干网络的模型仍然优于它们至少一个2.1%的健壮差额（healthy margin）。
 
 <center>
     <img style="border-radius: 0.3125em;
@@ -386,7 +386,7 @@ $$h-swish[x]=x\frac{RELU6(x+3)}{6}$$
 
 ## 7. 结论与未来工作
 
-&emsp;本文介绍了MobileNetV3的Large和Small模型，展示了移动分类、检测和分割的STOA。我们已经描述了我们利用多种类型的网络架构搜索以及网络设计的进步来交付下一代移动模型的努力。我们还展示了如何采用像swish这样的非线性，并以量化友好和有效的方式应用压缩和激励，将它们作为有效的工具引入到移动模型领域。我们还介绍了一种称为LR-ASSP的轻量化分割译码器。尽管如何最好地将自动搜索技术与人类的直觉结合起来仍然是一个悬而未决的问题，但我们很高兴地提出了这些第一个积极的结果，并将继续在未来的工作中改进方法。
+&emsp;本文介绍了MobileNetV3的Large和Small模型，展示了移动分类、检测和分割的SOTA。我们描述了我们的努力，以利用多种网络架构搜索算法，以及先进的网络设计，以交付下一代移动模型。我们还展示了如何采用像swish这样的非线性，并以量化友好和有效的方式应用压缩和激励，将它们作为有效的工具引入到移动模型领域。我们还介绍了一种称为LR-ASSP的轻量级分割解码器。尽管如何最好地将自动搜索技术与人类的直觉结合起来仍然是一个悬而未决的问题，但我们很高兴地提出了这些初步的积极结果，并将继续在未来的工作中继续改进这些方法。
 
 ## 附录A 不同分辨率和乘数的性能表
 
