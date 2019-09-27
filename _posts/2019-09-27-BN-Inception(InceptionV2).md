@@ -28,7 +28,7 @@ tags:
 &emsp;深度学习极大地提高了视觉、语言和许多其他领域的技术水平。随机梯度下降（SGD）已被证明是训练深度网络的一种有效方法，SGD变体如momentum和Adagrad已被用来实现最先进的性能。SGD优化网络参数$\Theta$，以减少损失
 
 $$
-\Theta=\mathop{\arg\min}_{\Theta}\frac{1}{N}\sum_{i=1}^{N}l\left(x_{i},\Theta\right)
+\Theta=\mathop{\arg\min}_{\Theta}\frac{1}{N}\sum_{i=1}^{N}\ell\left(x_{i},\Theta\right)
 $$
 
 &emsp;
