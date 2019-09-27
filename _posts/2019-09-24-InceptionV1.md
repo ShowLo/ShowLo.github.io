@@ -89,7 +89,7 @@ tags:
 
 &emsp;上述模块的一个大问题是，至少在这种简单的形式下，即使是少量的5×5卷积，在具有大量滤波器的卷积层上也可能非常昂贵。一旦将池化单元添加到组合中，这个问题就变得更加突出：输出滤波器的数量等于前一阶段的滤波器数量。池化层的输出与卷积层的输出合并，将不可避免地导致输出数量逐级增加。虽然这种体系结构可能覆盖了最优的稀疏结构，但它的效率非常低，导致在几个阶段内计算量激增。
 
-&emsp;这就引出了Inception架构的第二个想法：在计算需求增加过多的地方明智地减少维度。这是基于嵌入的成功：即使是低维嵌入也可能包含大量关于相对较大的图像patch的信息。然而，嵌入信息以密集、压缩的形式表示信息，压缩信息更难处理。在大多数地方，表示应该保持稀疏（根据[Provable bounds for learning some deep representations]的条件所要求的），并且仅在必须集中信号时才压缩它们。也就是说，在昂贵的$3\times 3$和$5\times 5$卷积之前，使用$1\times 1$卷积减少计算量。除了用于缩减计算量，它们还包括使用校正线性激活使它们具有双重用途。最终结果如图2（b）所示。
+&emsp;这就引出了Inception架构的第二个想法：在计算需求增加过多的地方明智地减少维度。这是基于嵌入的成功：即使是低维嵌入也可能包含大量关于相对较大的图像patch的信息。然而，嵌入信息以密集、压缩的形式表示信息，压缩信息更难处理。在大多数地方，表示应该保持稀疏（根据[Provable bounds for learning some deep representations]的条件所要求的），并且仅在必须集中信号时才压缩它们。也就是说，在昂贵的$3\times 3$和$5\times 5$卷积之前，使用$1\times 1$卷积减少计算量。除了用于缩减计算量，它们还包括使用整流线性激活使它们具有双重用途。最终结果如图2（b）所示。
 
 &emsp;通常，Inception网络是由上述类型的模块组成的网络，这些模块相互堆叠，偶尔使用带有stride为2的最大池化层来将网格的分辨率减半。出于技术原因（训练期间的内存效率），开始仅在较高层使用Inception模块，同时保持较低层的传统卷积方式似乎是有益的。这不是严格必要的，只是反映了我们当前实施中的一些基础设施的效率低下。
 
@@ -97,62 +97,137 @@ tags:
 
 &emsp;计算资源的改进使用允许在不陷入计算困难的情况下增加每个阶段的宽度和阶段的数量。您可以利用Inception架构来创建稍差但计算上更便宜的版本。我们发现，所有可用的旋钮和杠杆（knobs and levers）都可实现计算资源的受控平衡，从而使网络的运行速度比具有非Inception架构的类似性能的网络快3到10倍，但是这时需要仔细的手动设计。
 
-## 5. 实验
+## 5. GoogLeNet
 
-&emsp;
+&emsp;“GoogLeNet”这个名字指的是我们提交给ILSVRC 2014竞赛的Inception架构的特定化身。我们还使用了一个更深更广的Inception网络，它的质量稍好一些，但是将它添加到集成中似乎只能略微改善结果。我们忽略了网络的细节，因为经验证据表明，确切的架构参数的影响相对较小。表1展示了竞赛中最常见的Inception实例。在本实验的7个模型中，有6个模型采用了该网络（使用不同的图像patch采样方法训练）。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-24-InceptionV1/table1.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表1. GoogLeNet架构的GoogLeNet化身</div>
+</center>
 
-&emsp;
+&emsp;所有的卷积，包括Inception模块内部的卷积，都使用经过整流的线性激活。在RGB颜色空间中，我们的网络中感受野的大小为224×224，均值为零。“#$3\times 3$ reduce”和“#$5\times 5$ reduce”表示在进行$3\times 3$和$5\times 5$卷积之前使用的缩减层中$1\times 1$滤波器的个数。在pool proj列中，可以看到投影层中内置max-pooling之后$1\times 1$滤波器的数量。
+所有这些缩减/投影层也使用了整流的线性激活。
 
-&emsp;
+&emsp;该网络的设计考虑了计算效率和实用性，因此可以在单个设备上运行推理，甚至包括那些计算资源有限的设备，特别是内存占用较低的设备。如果只计算带参数的层，则网络深度为22层（如果还计算池化，则为27层）。用于网络构建的总层数（独立的构建块）约为100。确切的数字取决于机器学习基础设施如何计算层数。分类器之前使用的平均池是基于[Network in network]的，尽管我们的实现有一个额外的线性层。线性层使我们能够很容易地使我们的网络适应其他标签集，但是它主要是为了方便而使用的，我们并不期望它会产生重大影响。我们发现，从全连接层转移到平均池化后，top-1准确性提高了约0.6％，但是即使删除了完全连接的层之后，仍然必须使用dropout。
 
-&emsp;
+&emsp;考虑到网络的深度相对较大，以有效的方式将梯度传播回所有层的能力是一个问题。浅层网络在这一任务上的较强性能表明，网络中间各层所产生的特征应具有很强的判别能力。通过添加连接到这些中间层的辅助分类器，可以期望在分类器的较低阶段进行区分。这被认为是为了在提供正则化的同时对抗梯度消失问题。这些分类器以较小的卷积网络的形式放在Inception（4a）和（4d）模块输出之上。在训练过程中，它们的损失以折现权值加到网络的总损失中（辅助分类器的损失加权为0.3）。在推理时，这些辅助网络被丢弃。之后的控制实验表明，辅助网络的效果相对较小（约0.5%），只需要其中一个网络就可以达到同样的效果。
 
-### 5.1 Cifar10
+&emsp;额外网络（包括辅助分类器）的确切结构如下：
 
-&emsp;
+* 平均池化层，滤波器大小为$5\times 5$，步长为3，在（4a）阶段级输出$4\times 4\times 512$，在（4d）阶段输出$4\times 4\times 528$。
 
-### 5.2 Street View House Numbers
+* 具有128个滤波器的$1\times\ 1$的卷积进行降维和整流线性激活。
 
-&emsp;
+* 1024个单元的全连接层，整流线性激活。
 
-### 5.3 German Traffic Sign Recognition Benchmark
+* 具有70%输出丢弃率的dropout层。
 
-&emsp;
+* 以softmax loss作为分类器的线性层（预测与主分类器相同的1000个类，但在推断时删除）。
 
-## 6. 较
+&emsp;结果网络的示意图如图3所示。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-24-InceptionV1/figure3.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图3. GoogLeNet网络，包含所有的功能</div>
+</center>
 
-### 6.1 体系结构
+## 6. 训练方法
 
-&emsp;
+&emsp;GoogLeNet网络使用DistBelief分布式机器学习系统进行训练，使用少量的模型和数据并行性。虽然我们只使用了基于CPU的实现，但粗略的估计表明，GoogLeNet网络可以在一周内使用很少的高端GPU训练到收敛，主要限制是内存的使用。我们的训练采用了momentum为0.9的异步随机梯度下降，固定学习速率调度（每8个epoch降低4%的学习速率）。使用Polyak平均创建推理时使用的最终模型。
 
-&emsp;
+&emsp;在比赛开始前的几个月里，图像采样方法已经发生了很大的变化，已经收敛的模型还接受了其他选项的训练，有时还会结合改变的超参数，比如dropout和学习率。因此，很难对训练这些网络的最有效的单一方法给出明确的指导。更复杂的是，受[Some improvements on deep convolutional neural network based image classification.]的启发，一些模型主要针对相对较小的crop，另一些则针对较大的crop。尽管如此，一项经验证在比赛后效果很好的方法包括对各种尺寸的图像patch进行采样，这些patch的大小均匀地分布在图像区域的8％和100％之间，且长宽比限制在区间$[\frac{3}{4},\frac{4}{3}]$。此外，我们还发现Andrew Howard的光度畸变对克服训练数据成像条件的过拟合是有用的。
 
-### 6.2 调整
+## 7. ILSVRC 2014分类挑战的设置和结果
 
-&emsp;
+&emsp;ILSVRC 2014分类挑战包括将图像分类为Imagenet层次结构中的1000个叶节点类别之一。大约有120万张用于训练的图像，5万张用于验证，10万张用于测试。每个图像都与一个ground truth类别相关联，性能是基于得分最高的分类器预测来测量的。通常报告两个数字：top-1准确率，将ground truth与第一个预测类进行比较；top-5错误率，将ground与前5个预测类进行比较：如果ground truth在前五名之内，则不论该图片在其中的排名如何，都将其视为正确分类。该挑战使用top-5错误率进行排名。
 
-&emsp;
+&emsp;我们在没有外部数据用于训练的情况下参加了挑战。除了本文提到的训练技术外，我们还在测试中采用了一套技术来获得更高的性能，下面我们将对此进行描述。
 
-&emsp;
+1. 我们独立训练了7个版本相同的GoogLeNet模型（包括一个更大的版本），并使用它们进行了集成预测。这些模型使用相同的初始化（由于疏忽，甚至使用相同的初始权重）和学习速率策略进行训练。它们只是在采样方法和随机输入图像顺序上有所不同。
 
-&emsp;
+2. 在试验过程中，我们采用了比Krizhevsky等人的[Imagenet classification with deep convolutional neural networks]更激进的crop方法。具体来说，我们将图像大小调整为4个尺度，其中较短的维度（高或宽）分别为256、288、320和352，取这些调整了大小的图像的左、中和右正方形（对于人像图像，取顶部、中部和底部正方形）。对于每个正方形，我们取四个角和中间的$224\times 224$crop，以及大小调整为$224\times 224$的正方形，以及它们的镜像版本。这样就得到每张图$4\times 3\times 6\times 2=144$个crop。Andrew Howard在前一年的比赛中也使用了类似的方法，我们通过经验验证，该方法的性能略差于提议的方案。我们注意到，这种激进的crop在实际应用中可能没有必要，因为在出现合理数量的crop之后，更多crop的效益就会变得微不足道（我们稍后将说明这一点）。
 
-### 6.3 实验
+3. 对多个crop和所有分类器的softmax概率进行平均，以获得最终的预测结果。在我们的实验中，我们分析了验证数据的替代方法，如crop上的最大池化和分类器上的平均，但与简单的平均相比，它们的性能较差。
 
-&emsp;
+&emsp;在本文的其余部分中，我们分析了影响最终提交的总体性能的多个因素。
 
-&emsp;
+&emsp;我们的最终提交在验证和测试数据上都获得了6.67%的top-5错误率，在其他参与者中排名第一。这与2012年的监督方法相比，相对减少了56.5%，与前一年的最佳方法（Clarifai）相比，相对减少了约40%。这两种方法都使用外部数据来训练分类器。表2显示了过去3年中一些性能最好的方法的统计数据。我们还在表3中通过预测图像时改变模型的数量和使用的crop的数量来分析和报告多种测试选择的性能。当我们使用一个模型时，我们选择验证数据上top-1错误率最低的模型。所有数字均报告在验证数据集上，以免过度拟合测试数据统计信息。
 
-## 7. 结论
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-24-InceptionV1/table2.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表2. 分类性能</div>
+</center>
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-24-InceptionV1/table3.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表3. GoogLeNet分类性能分解</div>
+</center>
+
+## 8. ILSVRC 2014检测挑战的设置和结果
+
+&emsp;ILSVRC检测任务是在200个可能的类中生成图像中目标周围的包围框。如果检测到的目标与ground truth类匹配，并且它们的边界框重叠至少50%（使用Jaccard索引），那么它们就被认为是正确的。额外的检测被认为是假阳性（false positive），会受到惩罚。与分类任务相反，每个图像可能包含许多对象，也可能不包含任何对象，并且它们的大小可能不同。结果使用mAP报告。GoogLeNet的检测方法类似于R-CNN，但是用Inception模型作为区域分类器进行了扩充。此外，区域proposal步骤通过结合选择性搜索方法和多框预测来提高目标边界框的召回率。为了减少false positive的次数，超像素尺寸增加了2倍。这将来自选择性搜索算法的proposal减半。我们从multi-box中添加了200个区域proposal，总共占[Rich feature hierarchies for accurate object detection and semantic segmentation]使用proposal的60%，同时将覆盖范围从92%增加到93%。减少增加覆盖率的proposal数量的总体效果是单个模型案例的mAP提高了1%。最后，我们使用6个GoogLeNets的集成对每个区域进行分类。这将准确率从40%提高到43.9%。注意，与R-CNN相反，由于缺少时间，我们没有使用边界框回归。
+
+&emsp;我们首先报告最好的检测结果，并显示自第一版检测任务以来的进展。与2013年的结果相比，准确率几乎翻了一番。表现最好的团队都使用卷积网络。我们在表4中报告了官方评分和每个团队的常见策略：使用外部数据、集成模型或上下文模型。外部数据通常是用于训练模型的ILSVRC12分类数据，然后在检测数据上进行微调。一些团队还提到了定位数据的使用。由于定位任务边界框的很大一部分没有包含在检测数据集中，因此可以使用这些数据对一般的边界框回归器进行预训练，方法与分类进行预训练相同。GoogLeNet没有使用定位数据进行训练。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-24-InceptionV1/table4.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表4. 检测性能比较。未报告的值用问号表示。</div>
+</center>
+
+&emsp;在表5中，我们仅使用一个模型比较结果。表现最好的模型是Deep Insight提供的而且令人惊讶的是，3个模型的集成才提高了0.3点，而GoogLeNet通过集成则获得了明显更强的结果。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-24-InceptionV1/table5.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">表5. 单模型检测性能</div>
+</center>
+
+## 9. 结论
+
+&emsp;我们的结果提供了一个坚实的证据，即用现成的密集构建块逼近期望的最佳稀疏结构是改进计算机视觉神经网络的可行方法。这种方法的主要优点是，与较浅、较窄的体系结构相比，在计算需求适度增加的情况下，可以显著提高质量。
+
+&emsp;我们的目标检测工作很有竞争力，尽管我们没有使用上下文，也没有执行边界框回归，这进一步证明了Inception架构的优势。
+
+&emsp;对于分类和检测，通过更昂贵的具有相似深度和宽度的非Inception类型网络可以获得相似的结果质量。尽管如此，我们的方法仍然提供了坚实的证据，表明迁移到更稀疏的体系结构通常是可行和有用的。这表明了未来的工作，以[Provable bounds for learning some deep representations]为基础，以自动化的方式创建稀疏和更精细的结构，以及将Inception架构的见解应用于其他领域。
 
 ---
 
 ## 个人看法
 
-&emsp;
+&emsp;这篇文章是Inception系列的开山之作，其受生物学上视觉处理的多尺度的启发，用了一个多分支结构，在各个分支里用不同大小的卷积核达到提取多尺度特征的目的。同时由于较大的卷积核（$3\times 3$和$5\times 5$）在通道数较多时计算代价很高，故又在这些卷积核之前用了$1\times 1$卷积来减少输入通道数。Inception V1不同于VGG那种拓展网络深度来提高精度的方法，它主要还是以一种高效的方式拓展网络的宽度，同样来达到提高精度的目的。
