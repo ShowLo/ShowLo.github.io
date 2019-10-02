@@ -219,37 +219,94 @@ $$
 
 &emsp;我们进一步推测，批归一化可能导致层的雅可比矩阵的奇异值接近1，这对于训练是有益的。考虑两个具有归一化输入的连续层，以及这些归一化向量之间的转换：$\hat{z}=F(\hat{x})$。假设$\hat{x}$与$\hat{z}$为高斯不相关，且$F(\hat{x})\approx J\hat{x}$为给定模型参数的线性变换，则$\hat{x}$与$\hat{z}$均有单位协方差，且$I=Cov[\hat{z}]=JCov[\hat{x}]J^{T}=JJ^{T}$。因此，$JJ^{T}=I$，所以$J$的所有奇异值都等于1，这使得反向传播期间保留了梯度大小。在实际中，变换不是线性的，归一化的值不能保证是高斯的，也不能保证是独立的，但是我们仍然期望批归一化有助于使梯度传播更好地表现。批归一化对梯度传播的精确影响仍是一个有待进一步研究的领域。
 
-### 3.4 批归一化使模型正规化
+### 3.4 批归一化使模型正则化
 
 &emsp;当使用批归一化进行训练时，可以看到一个训练样本与小批量中的其他样本结合使用，训练网络不再为给定的训练样本生成确定值。在我们的实验中，我们发现这种效应有利于网络的泛化。虽然Dropout通常被用来减少过度拟合，在批归一化网络中，我们发现它可以被删除或大量减少。
 
 ## 4. 实验
 
-&emsp;
+### 4.1 Activations over time
 
-&emsp;
+&emsp;为了验证Internal Covariate Shift对训练的影响以及批归一化减轻（ICS）的能力，我们考虑了MNIST数据集上的预测数字类别的问题。我们使用一个非常简单的网络，一个$28\times 28$二进制图像作为输入，3个完全连接的隐含层，每个层有100个激活。每个隐含层用sigmoid非线性计算$y=g(Wu+b)$，权重$W$初始化为小的随机高斯值。最后一个隐含层后面是一个全连接层，有10个激活（每个类一个）和交叉熵损失。我们对网络进行50000步的训练，每个小批60个样本。我们向网络的每个隐含层添加了批归一化，如第3.1节所示。我们感兴趣的是baseline和批归一化网络之间的比较，而不是在MNIST上实现最先进的性能（所描述的体系结构没有）。
 
-&emsp;
+&emsp;图1（a）显示了随着训练的进行，两个网络对保留的测试数据进行正确预测的比例。批归一化网络具有较高的测试精度。为了调查原因，我们在训练过程中研究了原始网络$N$和批归一化网络$N_{BN}^{tr}$（算法2）中sigmoid的输入。在图1（b，c）中，我们展示了每个网络的最后一个隐含层的一个典型激活，它的分布是如何演变的。原始网络中分布的均值和方差随着时间的推移而发生显著变化，这使得后续层的训练变得复杂。相比之下，随着训练的进行，批归一化网络中的分布更加稳定，这有助于训练的进行。
 
-&emsp;
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-27-BN-Inception(InceptionV2)/figure1.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图1. （a）经过和没有经过批归一化训练的MNIST网络的测试准确度与训练步骤数的关系。批归一化有助于提高网络训练的速度和精度。（b，c）在训练过程中一个典型sigmoid的输入分布的演变，显示为第{15，50，85}个百分位数。批归一化使分布更加稳定，减少了Internal Covariate Shift。</div>
+</center>
 
-&emsp;
+### 4.2 ImageNet分类
 
-&emsp;
+&emsp;我们应用批归一化到Inception网络的一个新的变体上，训练在ImageNet的分类任务上。网络中有大量的卷积和池化层，利用softmax层来预测图像类，有1000种可能性。卷积层使用ReLU作为非线性。与[Going Deeper with Convolutions]中描述的网络（注：也就是GoogLeNet或者说Inception V1）的主要区别是，$5\times 5$卷积层被两个连续的$3\times 3$卷积层替换，最多128个滤波器。该网络包含$13.6\cdot 10^{6}$个参数，并且除了顶部softmax层之外，没有全连接层。更多的详情见附录。在本文的其余部分中，我们将此模型称为Inception。该模型使用动量随机梯度下降的一个版本进行训练，使用的小批量大小为32。训练使用大规模分布式体系结构进行。通过计算验证精度@1来评估所有网络的训练进展情况，即在一组保留的图像上，使用每张图像的single-crop，从1000种可能性中预测正确标签的概率。
 
-&emsp;
+&emsp;在我们的实验中，我们评估了使用批归一化的Inception的几种修改。在所有情况下，以卷积的方式对每个非线性的输入采用批归一化，如第3.2节所述，同时保持其余的体系结构不变。
 
-&emsp;
+#### 4.2.1 加速BN网络
 
-&emsp;
+&emsp;仅仅向网络添加批归一化并不能充分利用我们的方法。为此，我们进一步改变了网络及其训练参数，如下所示：
 
-&emsp;
+&emsp;*提高学习率。*&emsp;在批归一化模型中，我们已经能够从更高的学习率中获得训练加速，而没有不良的副作用（第3.3节）。
 
-&emsp;
+&emsp;*删除Dropout。*&emsp;如第3.4节所述，批处理规范化实现了与Dropout相同的一些目标。从修改后的BN-Inception中删除Dropout可以加快训练速度，而不会增加过拟合。
 
-&emsp;
+&emsp;*减少$L_{2}$权重正则化。*&emsp;在Inception中，模型参数的$L_{2}$损失控制着过拟合，而在修改的BN-Inception中，这种损失的权重减少了5倍。我们发现这提高了在保留的验证数据上的准确性。
 
-&emsp;
+&emsp;*加速学习率衰减。*&emsp;在训练Inception时，学习率呈指数衰减。因为我们的网络比Inception训练得更快，所以我们将学习率降低了6倍。
+
+&emsp;*删除局部响应归一化。*&emsp;虽然Inception和其他网络从中受益，但我们发现使用批归一化后它就没有必要了。
+
+&emsp;*更彻底地shuffle训练样本。*&emsp;我们启用了训练数据的分片内改组，从而防止了相同的样本始终出现在一个小批量中。这导致验证准确性提高了约1％，这与批归一化作为正则化器的观点一致（第3.4节）：当每次看到样本都会对样本产生不同的影响时，我们方法固有的随机性应该是最有益的。
+
+&emsp;*减少光度失真。*&emsp;由于批归一化的网络训练速度更快，而且每个训练样本的观察次数更少，所以我们让训练器通过减少对“真实”图像的失真来关注更多的“真实”图像。
+
+#### 4.2.2 Single-Network Classification
+
+&emsp;我们评估了以下网络，均使用LSVRC2012训练数据进行训练，并对验证数据进行测试:
+
+&emsp;*Inception：*&emsp;4.2节开始描述的网络，初始学习率为0.0015。
+
+&emsp;*BN-Baseline：*&emsp;与Inception相同，在每个非线性之前进行批归一化。
+
+&emsp;*BN-x5：*&emsp;批归一化的Inception和第4.2.1节中的修改。初始学习率提高了5倍，达到0.0075。与原始Inception相同的学习率增加导致模型参数达到机器无穷大。
+
+&emsp;*BN-x30：*&emsp;类似于BN-x5，但初始学习率为0.045（初始学习率的30倍）。
+
+&emsp;*BN-x5-Sigmoid：*&emsp;类似于BN-x5，但是用sigmoid非线性$g(t)=\frac{1}{1+exp\left(-x\right)}$而不是ReLU。我们还尝试用sigmoid训练原始的Inception，但该模型仍保持着与偶然性相同的精确性。
+
+&emsp;在图2中，我们展示了网络的验证精度，作为训练步骤数量的函数。经过$31\cdot 10^{6}$个训练步骤，Inception准确率达到72.2%。图3显示了对于每个网络，达到相同的72.2%准确率所需要的训练步骤数，以及网络所达到的最大验证精度和达到该精度所需的步骤数。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-27-BN-Inception(InceptionV2)/figure2.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图2. Inception及其批归一化变体的single-crop验证精度与训练步骤数的关系。</div>
+</center>
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-27-BN-Inception(InceptionV2)/figure3.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图3. 对于Inception和批归一化的变体，达到Inception的最大精度（72.2%）和网络所能达到的最大精度所需的训练步骤数。</div>
+</center>
+
+&emsp;通过只使用批归一化（BN-Inception），我们在不到一半的训练步骤中匹配Inception的准确性。通过应用第4.2.1节中的修改，我们显著提高了网络的训练速度。BN-x5需要比Inception少14倍的步骤就能达到72.2%的准确率。有趣的是，进一步提高学习率（BN-x30）会使模型最初的训练速度稍微慢一些，但允许它达到更高的最终精度。$6\cdot 10^{6}$步后达到74.8%，即比Inception达到72.2％所需的步数少5倍。
+
+&emsp;我们还验证了Internal Covariate Shift的减少允许将Sigmoid用作非线性时训练具有批归一化的深层网络，尽管训练此类网络存在众所周知的困难。确实，BN-x5-Sigmoid达到了69.8％的准确度。如果没有批归一化，使用sigmoid的Inception的精确度永远不会超过1/1000。
 
 ## 5. 结论
 
