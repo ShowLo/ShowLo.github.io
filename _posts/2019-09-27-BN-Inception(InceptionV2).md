@@ -266,7 +266,7 @@ $$
 
 &emsp;*减少光度失真。*&emsp;由于批归一化的网络训练速度更快，而且每个训练样本的观察次数更少，所以我们让训练器通过减少对“真实”图像的失真来关注更多的“真实”图像。
 
-#### 4.2.2 Single-Network Classification
+#### 4.2.2 单网络分类
 
 &emsp;我们评估了以下网络，均使用LSVRC2012训练数据进行训练，并对验证数据进行测试:
 
@@ -308,16 +308,64 @@ $$
 
 &emsp;我们还验证了Internal Covariate Shift的减少允许将Sigmoid用作非线性时训练具有批归一化的深层网络，尽管训练此类网络存在众所周知的困难。确实，BN-x5-Sigmoid达到了69.8％的准确度。如果没有批归一化，使用sigmoid的Inception的精确度永远不会超过1/1000。
 
+#### 4.2.3 集成分类
+
+&emsp;目前报道的ImageNet大型视觉识别大赛的最佳结果是通过传统模型的Deep Image集成和[Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification]的集成模型得到的。根据ILSVRC服务器的评估，后者报告的top-5错误为4.94%。在这里，我们报告的top-5验证错误率为4.9%，测试错误率为4.82%（根据ILSVRC服务器）。这改进了之前的最佳结果，并超过了人类评分者的估计精度。
+
+&emsp;在我们的集成中，我们使用了6个网络。每一个都是基于BN-x30，作了以下修改：增加卷积层的初始权重；使用Dropout（dropout的概率为5%或10%vs原始Inception的为40%）；以及对模型的最后隐含层使用非卷积的，每个激活的批归一化。每个网络经过$6\cdot 10^{6}$步左右的训练，达到了最大精度。集成预测是基于各组成网络预测的类概率的算术平均。集成和多crop推理的细节类似于\[GoogLeNet\]。
+
+&emsp;我们在图4中证明了批归一化允许我们在ImageNet分类挑战基准上以合理的间隔设置新的最先进技术。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-27-BN-Inception(InceptionV2)/figure4.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图4. 在提供的包含50000张图像的验证集上，Batch-Normalized Inception与以前的SOTA进行比较。*根据测试服务器的报告，BN-Inception集成在ImageNet测试集的100000张图像上达到了4.82%的top-5错误率</div>
+</center>
+
 ## 5. 结论
 
-&emsp;
+&emsp;我们提出了一种新的机制，可以显著加快深度网络的训练。基于众所周知的Covariate Shift使机器学习系统的训练复杂化的前提，Covariate Shift也适用于子网和层，从网络的内部激活中将其删除可能有助于训练。我们提出的方法从归一化激活以及将归一化合并到网络体系结构本身中汲取了力量。这可以确保任何用于训练网络的优化方法都能恰当地处理归一化。为了实现深度网络训练中常用的随机优化方法，我们对每个小批量进行归一化，并通过归一化参数对梯度进行反向传播。批归一化对每个激活只添加两个额外的参数，这样做保留了网络的表征能力。提出了一种利用批归一化网络构造、训练和执行推理的算法。得到的网络可以用饱和非线性进行训练，对增加的训练率更有容忍度，而且通常不需要dropout用于正则化。
 
-&emsp;
+&emsp;仅仅在最先进的图像分类模型中添加批归一化，就可以大大加快训练速度。通过进一步提高学习率、去除Dropout和应用批归一化所提供的其他修改，我们只需一小部分训练步骤就达到了先前的SOTA，然后在单网络图像分类中击败了SOTA。此外，通过结合使用批归一化训练的多个模型，我们在ImageNet上的表现要比ImageNet上最知名的系统要好。
 
-&emsp;
+&emsp;有趣的是，我们的方法与[Knowledge matters: Importance of prior information for optimization]的标准化层有相似之处，尽管这两种方法的目标非常不同，执行的任务也不同。批归一化的目标是在整个训练过程中实现激活值的稳定分布，在我们的实验中，我们将其应用于非线性之前，因为在非线性之前，匹配一阶和二阶矩更有可能得到稳定的分布。相反，另一个方法将标准化层应用于非线性的输出，导致更稀疏的激活。在我们的大规模图像分类实验中，无论有没有批归一化，我们都没有观察到非线性输入是稀疏的。批归一化的另一个显著区别特征包括学习尺度和平移，从而允许BN变换来表示恒等变换（标准化层不需要这个，因为它后面跟着的是学习的线性变换，从概念上讲，它吸收了必要的尺度和平移），卷积层的处理，不依赖于小批量的确定性推理和在网络中批归一化每个卷积层。
+
+&emsp;在这项工作中，我们还没有探索批归一化可能实现的所有可能性。我们未来的工作包括将我们的方法应用于递归神经网络，其中Internal Covariate Shift和梯度消失或爆炸可能特别严重，这将使我们能够更彻底地检验归一化改善梯度传播的假设（第3.3节）。我们计划研究批归一化是否可以帮助领域适应，从传统意义上说，即网络执行的归一化是否可以使其更轻松地推广到新的数据分布，也许只需对总体均值和方差重新计算即可（算法2）。最后,我们相信的进一步理论分析算法将允许更多的改进和应用。
+
+## 附录
+
+### 使用Inception启模型的变体
+
+&emsp;图5记录了与GoogleNet架构相比所做的更改。对于本表的解释，请查阅\[GoogleNet\]。与GoogLeNet模型相比，显著的架构变化包括:
+
+* 将$5\times 5$卷积层替换为两个连续的$3\times 3$卷积层。这将使网络的最大深度增加9个权重层。同时，该方法将参数量提高了25%，计算量提高了30%左右。
+
+* $28\times 28$的Inception模块数量从2增加到3。
+
+* 在模块内部，有时使用平均池化，有时使用最大池化。这在与表中的池化层相对应的条目中指示。
+
+* 在任何两个Inception模块之间没有跨板池化层，但是在模块3c、4e中的滤波器级联之前采用了stride-2卷积/池化层。
+
+&emsp;我们的模型在第一个卷积层上使用了深度乘数为8的可分离卷积。这减少了计算成本，同时增加了训练时的内存消耗。
+
+<center>
+    <img style="border-radius: 0.3125em;
+    box-shadow: 0 2px 4px 0 rgba(34,36,38,.12),0 2px 10px 0 rgba(34,36,38,.08);" 
+    src="https://raw.githubusercontent.com/ShowLo/ShowLo.github.io/master/img/2019-09-27-BN-Inception(InceptionV2)/figure5.png">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">图5. Inception架构</div>
+</center>
 
 ---
 
 ## 个人看法
 
-&emsp;
+&emsp;这篇文章提出了BN也就是批归一化操作，基本上在现在的CNN中是一个必备操作了。然后对Inception所作的一些修改中，比较有启示作用的还是用了两个$3\times 3$卷积代替了原本的$5\times 5$卷积。
