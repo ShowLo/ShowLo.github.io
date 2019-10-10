@@ -254,9 +254,7 @@ $$
     padding: 2px;">表3. 迁移学习数据集</div>
 </center>
 
-&emsp;图9将MixNet-S/M与一列以前的模型对迁移学习精度和FLOPs进行了比较。对于每个模型，我们首先在ImageNet上从零开始训练它，然后使用类似于[Do better imagenet models transfer
-better?]的设置在目标数据集上对所有权重进行微调。MobileNets、Inception、ResNet、DenseNet的精度和FLOPs数据均来自[Do better imagenet models transfer
-better?]。总的来说，我们的MixNet在所有这些数据集上都明显优于以前的模型，特别是在使用最广泛的CIFAR-10和CIFAR-100上，这表明我们的MixNet也可以很好地推广到迁移学习。特别地，我们的MixNet-M以3.49M的参数和352M的FLOPS实现了97.92%的精度，比ResNet-50提高了1%的精度，效率提高了11.4倍。
+&emsp;图9将MixNet-S/M与一列以前的模型对迁移学习精度和FLOPs进行了比较。对于每个模型，我们首先在ImageNet上从零开始训练它，然后使用类似于[Do better imagenet models transfer better?]的设置在目标数据集上对所有权重进行微调。MobileNets、Inception、ResNet、DenseNet的精度和FLOPs数据均来自[Do better imagenet models transfer better?]。总的来说，我们的MixNet在所有这些数据集上都明显优于以前的模型，特别是在使用最广泛的CIFAR-10和CIFAR-100上，这表明我们的MixNet也可以很好地推广到迁移学习。特别地，我们的MixNet-M以3.49M的参数和352M的FLOPS实现了97.92%的精度，比ResNet-50提高了1%的精度，效率提高了11.4倍。
 
 <center>
     <img style="border-radius: 0.3125em;
