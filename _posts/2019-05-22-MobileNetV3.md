@@ -17,7 +17,7 @@ tags:
 ---
 
 # MobileNetV3
-&emsp;谷歌在2019年5月在arxiv上公开了MobileNetV3的论文，原论文见 [Searching for MobileNetV3](https://arxiv.org/abs/1905.02244v2)。
+&emsp;谷歌在2019年5月在arxiv上公开了MobileNetV3的论文，原论文见 [Searching for MobileNetV3](https://arxiv.org/abs/1905.02244)。
 
 &emsp;下面先对论文做一个简单的翻译：
 
